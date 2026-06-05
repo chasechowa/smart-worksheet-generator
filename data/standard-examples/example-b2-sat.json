@@ -1,0 +1,142 @@
+{
+  "title": "The Future of Urban Agriculture",
+  "articleSnippet": "As cities expand and arable land shrinks, urban agriculture has emerged as a viable solution to feed growing populations. Vertical farms, rooftop gardens, and hydroponic systems are transforming how we think about food production.",
+  "summary": {
+    "paragraph": "Urban agriculture has become increasingly important as [BLANK] continue to grow and traditional farmland becomes [BLANK]. Innovative approaches such as [BLANK] farms and [BLANK] systems allow food production in densely populated areas, offering a [BLANK] to conventional farming methods.",
+    "blanks": ["cities", "scarce", "vertical", "hydroponic", "alternative"]
+  },
+  "multipleChoice": [
+    {
+      "id": "q1",
+      "type": "Main Idea",
+      "question": "Which choice best captures the central claim of the passage?",
+      "options": ["Urban agriculture is replacing traditional farming entirely", "New farming methods offer solutions for cities with limited space", "Hydroponic systems are the most efficient way to grow food", "Cities should expand onto existing farmland"],
+      "answer": "B",
+      "explanation": "The passage focuses on urban agriculture as a solution for growing cities with shrinking arable land."
+    },
+    {
+      "id": "q2",
+      "type": "Finding Evidence",
+      "question": "Which choice provides the best evidence for the claim that urban agriculture is viable?",
+      "options": ["'As cities expand'", "'Vertical farms, rooftop gardens, and hydroponic systems'", "'transforming how we think'", "'feed growing populations'"],
+      "answer": "B",
+      "explanation": "The list of concrete examples supports the claim of viability."
+    },
+    {
+      "id": "q3",
+      "type": "Detail & Inference",
+      "question": "The passage suggests that urban agriculture is necessary primarily because...",
+      "options": ["traditional farmers lack modern technology", "city populations are increasing while farmland decreases", "hydroponic systems are cheaper than soil farming", "consumers prefer locally grown vegetables"],
+      "answer": "B",
+      "explanation": "The first sentence establishes the cause-and-effect relationship."
+    },
+    {
+      "id": "q4",
+      "type": "Function/Tone",
+      "question": "The author's tone in describing urban agriculture can best be described as...",
+      "options": ["skeptical and cautious", "enthusiastic but balanced", "dismissive of traditional methods", "urgent and alarmed"],
+      "answer": "B",
+      "explanation": "The author presents urban agriculture positively but does not exaggerate."
+    },
+    {
+      "id": "q5",
+      "type": "Paraphrase",
+      "question": "Which choice best paraphrases the sentence about vertical farms and hydroponic systems?",
+      "options": ["Advanced technology is changing urban food production", "Farming techniques remain unchanged in cities", "Only hydroponics work in urban environments", "Rooftop gardens are less effective than vertical farms"],
+      "answer": "A",
+      "explanation": "This captures the transformative nature described in the original."
+    },
+    {
+      "id": "q6",
+      "type": "Finding Evidence",
+      "question": "Which phrase from the passage indicates a limitation of traditional farming?",
+      "options": ["'urban agriculture'", "'arable land shrinks'", "'feed growing populations'", "'viable solution'"],
+      "answer": "B",
+      "explanation": "Shrinking arable land implies a limitation of traditional farming that requires space."
+    },
+    {
+      "id": "q7",
+      "type": "Main Idea",
+      "question": "The author would most likely agree with which statement?",
+      "options": ["Cities should ban traditional farms", "Urban agriculture complements existing food systems", "Hydroponics will make soil farming obsolete", "Population growth is not a concern for food security"],
+      "answer": "B",
+      "explanation": "The passage presents urban agriculture as an addition, not a replacement."
+    },
+    {
+      "id": "q8",
+      "type": "Detail & Inference",
+      "question": "According to the passage, urban agriculture involves all of the following EXCEPT...",
+      "options": ["vertical farms", "rooftop gardens", "hydroponic systems", "genetic modification of crops"],
+      "answer": "D",
+      "explanation": "Genetic modification is not mentioned in the passage."
+    },
+    {
+      "id": "q9",
+      "type": "Vocabulary in Context",
+      "question": "In the context of the passage, 'viable' most nearly means...",
+      "options": ["expensive", "feasible", "temporary", "controversial"],
+      "answer": "B",
+      "explanation": "'Viable' means capable of working successfully; 'feasible' is the closest synonym."
+    },
+    {
+      "id": "q10",
+      "type": "Function/Tone",
+      "question": "The primary purpose of the passage is to...",
+      "options": ["criticize urban development policies", "describe innovations in city-based food production", "argue for more agricultural subsidies", "compare farming methods across cultures"],
+      "answer": "B",
+      "explanation": "The passage's main goal is to inform readers about urban agriculture methods."
+    }
+  ],
+  "syntaxDeconstruction": [
+    {
+      "id": "s1",
+      "original": "As cities expand and arable land shrinks, urban agriculture has emerged as a viable solution to feed growing populations.",
+      "answer": "Cities expand. Arable land shrinks. Urban agriculture has emerged as a viable solution. The solution feeds growing populations."
+    },
+    {
+      "id": "s2",
+      "original": "Vertical farms, rooftop gardens, and hydroponic systems are transforming how we think about food production.",
+      "answer": "Vertical farms are transforming something. Rooftop gardens are transforming something. Hydroponic systems are transforming something. They transform how we think about food production."
+    }
+  ],
+  "writingWorkshop": {
+    "expansion": [
+      { "id": "e1", "fact": "Cities are expanding rapidly.", "conjunctions": ["however", "nevertheless"], "sampleAnswer": "Cities are expanding rapidly; however, agricultural land is not keeping pace." },
+      { "id": "e2", "fact": "Urban agriculture uses less space.", "conjunctions": ["consequently", "therefore"], "sampleAnswer": "Urban agriculture uses less space; consequently, it can be implemented in dense neighborhoods." },
+      { "id": "e3", "fact": "Hydroponic systems require no soil.", "conjunctions": ["although", "despite"], "sampleAnswer": "Although hydroponic systems require no soil, they still need careful nutrient management." },
+      { "id": "e4", "fact": "Local food production reduces transport costs.", "conjunctions": ["because", "since"], "sampleAnswer": "Local food production reduces transport costs because vegetables travel shorter distances." }
+    ],
+    "keywords": ["urban", "agriculture", "hydroponic", "sustainable", "population"],
+    "qaChain": [
+      "What challenges does traditional farming face in urban areas?",
+      "How do vertical farms address space limitations?",
+      "What are the environmental benefits of local food production?",
+      "Why might urban agriculture become more important in the future?"
+    ],
+    "criticalThinking": "Evaluate whether urban agriculture can realistically replace rural farming, or whether it should serve only as a supplementary system. Consider economic, environmental, and social factors."
+  },
+  "keys": {
+    "summary": ["cities", "scarce", "vertical", "hydroponic", "alternative"],
+    "mc": {
+      "q1": "B", "q2": "B", "q3": "B", "q4": "B", "q5": "A",
+      "q6": "B", "q7": "B", "q8": "D", "q9": "B", "q10": "B"
+    },
+    "syntaxDeconstruction": [
+      "Cities expand. Arable land shrinks. Urban agriculture has emerged as a viable solution. The solution feeds growing populations.",
+      "Vertical farms are transforming something. Rooftop gardens are transforming something. Hydroponic systems are transforming something. They transform how we think about food production."
+    ],
+    "expansion": [
+      "Cities are expanding rapidly; however, agricultural land is not keeping pace.",
+      "Urban agriculture uses less space; consequently, it can be implemented in dense neighborhoods.",
+      "Although hydroponic systems require no soil, they still need careful nutrient management.",
+      "Local food production reduces transport costs because vegetables travel shorter distances."
+    ],
+    "qa": [
+      "Traditional farming faces space constraints and competition from urban development.",
+      "Vertical farms grow crops in stacked layers, maximizing output per square meter.",
+      "Reduced transportation lowers carbon emissions and preserves freshness.",
+      "As populations grow and climate changes, urban agriculture provides food security."
+    ],
+    "critical": "Urban agriculture is unlikely to fully replace rural farming due to scale limitations, but it serves as a valuable supplementary system for fresh produce in cities."
+  }
+}

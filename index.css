@@ -1,0 +1,87 @@
+/* Base styles - Tailwind is loaded via CDN */
+
+:root {
+  --print-line-height: 2.2rem;
+}
+
+body {
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Print Styles */
+@media print {
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+
+  /* FIXED: Critical overrides for blank page issue */
+  body, html, #root {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+  }
+
+  /* Force Font */
+  * {
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+  }
+
+  /* Force Background Graphics */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Hide UI elements */
+  .no-print, .fixed, .sticky, nav, aside { display: none !important; }
+
+  /* Page breaks */
+  .page-break { page-break-before: always; }
+  .avoid-break { page-break-inside: avoid; }
+
+  /* Typography fixes */
+  .writing-line {
+    border-bottom: 1px solid #000 !important;
+    height: var(--print-line-height);
+    margin-bottom: 0.1rem;
+    width: 100%;
+    display: block;
+  }
+
+  /* Standardize Text Size */
+  p, li, div, span {
+    font-size: 11pt !important;
+    line-height: 1.5;
+  }
+
+  h1 { font-size: 24pt !important; text-align: center; }
+  h2 { font-size: 14pt !important; }
+
+  /* Reset margins for content area */
+  .lg\:ml-80 { margin-left: 0 !important; }
+  .lg\:p-8 { padding: 0 !important; }
+  .p-0 { padding: 0 !important; }
+}
+
+/* Editing UX */
+.editable-field:hover {
+  background-color: #f8fafc;
+  outline: 1px dashed #cbd5e1;
+}
+.editable-field:focus {
+  background-color: #fff;
+  outline: 2px solid #3b82f6;
+  border-radius: 4px;
+}
+
+#root { color: #1a202c; }

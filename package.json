@@ -1,0 +1,65 @@
+{
+  "name": "smart-worksheet-generator-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Smart Worksheet Generator - AI-powered reading comprehension worksheet builder",
+  "author": "Smart Worksheet Generator Team",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind-export.config.js -i export.css -o public/export-tailwind.css --minify",
+    "dev": "npm run build:css && vite",
+    "build": "npm run build:css && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "electron:dev": "npm run build:css && concurrently \"vite\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "npm run build:css && vite build && electron-builder"
+  },
+  "dependencies": {
+    "https-proxy-agent": "^9.0.0",
+    "node-fetch": "^2.7.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.1.2",
+    "electron": "^35.2.0",
+    "electron-builder": "^26.0.12",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^4.1.5",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.smartworksheet.generator",
+    "productName": "Smart Worksheet Generator",
+    "directories": {
+      "output": "release"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

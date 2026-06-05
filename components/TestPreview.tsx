@@ -1,0 +1,524 @@
+import React, { useRef, useEffect, useMemo } from 'react';
+import type { WorksheetData, AppSettings } from '../types';
+
+type ViewMode = 'editor' | 'print-std' | 'print-compact' | 'interactive' | 'pdf';
+
+const INTERACTIVE_SCRIPT = `
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.mcq-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        const isCorrect = opt.dataset.correct === 'true';
+        const parent = opt.closest('.mcq-container');
+        parent.querySelectorAll('.mcq-option').forEach(s => {
+          s.classList.remove('selected-correct', 'selected-wrong');
+        });
+        if (isCorrect) opt.classList.add('selected-correct');
+        else opt.classList.add('selected-wrong');
+      });
+    });
+    document.querySelectorAll('.check-input').forEach(input => {
+      input.addEventListener('input', () => { checkInput(input); });
+      input.addEventListener('blur', () => { checkInput(input); });
+    });
+    function checkInput(input) {
+      const val = input.value.trim().toLowerCase();
+      const ans = input.dataset.answer.toLowerCase();
+      if (val === ans) input.classList.add('correct');
+      else input.classList.remove('correct');
+    }
+  });
+`;
+
+const PrintableField: React.FC<{
+  value: string;
+  onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  className?: string;
+  placeholder?: string;
+  tagName?: 'h1' | 'div' | 'span' | 'p';
+  viewMode: ViewMode;
+}> = ({ value, onChange, className = "", placeholder = "", tagName = 'div', viewMode }) => {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (ref.current && viewMode === 'editor') {
+      ref.current.style.height = 'auto';
+      ref.current.style.height = ref.current.scrollHeight + 'px';
+    }
+  }, [value, viewMode]);
+
+  if (viewMode !== 'editor') {
+    return (
+      <div className={`whitespace-pre-wrap break-words ${className}`}>
+        {value || placeholder}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative group ${tagName === 'span' ? 'inline-block' : 'block'} w-full`}>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={onChange}
+        rows={1}
+        placeholder={placeholder}
+        className={`bg-transparent resize-none overflow-hidden transition-colors editable-field rounded no-print block w-full focus:outline-none focus:ring-1 focus:ring-blue-300 ${className}`}
+      />
+    </div>
+  );
+};
+
+const Toggle: React.FC<{ checked: boolean; onChange: () => void; label?: string; size?: 'sm' | 'xs' }> = ({ checked, onChange, label, size = 'sm' }) => (
+  <label className="flex items-center cursor-pointer gap-2">
+    <div className="relative">
+      <input type="checkbox" className="sr-only" checked={checked} onChange={onChange} />
+      <div className={`bg-gray-200 rounded-full shadow-inner transition-colors ${checked ? 'bg-blue-600' : ''} ${size === 'xs' ? 'w-6 h-3' : 'w-8 h-5'}`}></div>
+      <div className={`dot absolute left-0.5 top-0.5 bg-white rounded-full shadow transition-transform ${checked ? (size === 'xs' ? 'translate-x-3' : 'translate-x-3') : ''} ${size === 'xs' ? 'w-2 h-2' : 'w-3 h-3 left-1 top-1'}`}></div>
+    </div>
+    {label && <span className="text-sm font-medium text-gray-700">{label}</span>}
+  </label>
+);
+// --- The Worksheet Paper Component ---
+const WorksheetPaper: React.FC<{
+  data: WorksheetData;
+  settings: AppSettings;
+  visibleSections: Set<string>;
+  sectionOrder: string[];
+  onUpdate?: (key: keyof WorksheetData, val: any) => void;
+  viewMode: ViewMode;
+}> = ({ data, settings, visibleSections, sectionOrder, onUpdate, viewMode }) => {
+  
+  const isCompact = viewMode === 'print-compact' || viewMode === 'pdf';
+  const isInteractive = viewMode === 'interactive';
+  
+  const partLabels = useMemo(() => {
+    const active = sectionOrder.filter(id => visibleSections.has(id));
+    const mapping: Record<string, string> = {};
+    active.forEach((id, index) => {
+      mapping[id] = `Part ${index + 1}`;
+    });
+    return mapping;
+  }, [visibleSections, sectionOrder]);
+
+  const update = (key: keyof WorksheetData, val: any) => {
+    if (onUpdate && viewMode === 'editor') onUpdate(key, val);
+  };
+
+  const renderSection = (sectionId: string) => {
+    switch (sectionId) {
+      case 'summary':
+        return data.summary && (
+          <section key="summary" className="section-gap">
+            <h2 className="section-title">
+              {partLabels['summary']}: 🧩 Summary Completion
+            </h2>
+            {viewMode === 'editor' ? (
+              <textarea 
+                rows={Math.ceil((data.summary.paragraph || "").length / 80)}
+                value={data.summary.paragraph || ""}
+                onChange={e => update('summary', { ...data.summary, paragraph: e.target.value })}
+                className="w-full text-justify text-[11pt] leading-loose no-print bg-transparent resize-none p-2 rounded hover:bg-gray-50 transition-colors"
+              />
+            ) : (
+              <div className={`text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
+                {(data.summary.paragraph || "").split('[BLANK]').map((chunk, i, arr) => (
+                  <React.Fragment key={i}>
+                    {chunk}
+                    {i < arr.length - 1 && (
+                      isInteractive ? (
+                        <input 
+                          type="text" 
+                          className="check-input interactive-input mx-1 w-32 text-center" 
+                          data-answer={data.keys.summary[i] || ''}
+                          placeholder={`(${i + 1})`}
+                        />
+                      ) : (
+                        // REQ: Summary blanks converted to underscores
+                        <span className="mx-1 font-bold whitespace-nowrap">
+                           _______({i + 1})_______
+                        </span>
+                      )
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+
+      case 'mc':
+        return (
+          <section key="mc" className="section-gap">
+             <h2 className="section-title">
+              {partLabels['mc']}: 🧠 Logical Analysis
+            </h2>
+            <div className={isCompact ? 'space-y-3' : 'space-y-6'}>
+              {(data.multipleChoice || []).map((q, i) => (
+                <div key={q.id} className="avoid-break mcq-container">
+                  <div className="flex gap-3 mb-1">
+                    <span className="font-black bg-black text-white px-2 py-0.5 text-xs h-fit mt-1 rounded-sm">{i + 1}</span>
+                    <PrintableField 
+                      value={q.question}
+                      onChange={e => {
+                        const next = [...data.multipleChoice];
+                        next[i].question = e.target.value;
+                        update('multipleChoice', next);
+                      }}
+                      className="font-bold"
+                      viewMode={viewMode}
+                    />
+                  </div>
+                  <div className={`grid grid-cols-1 md:grid-cols-2 ml-10 ${isCompact ? 'gap-x-4 gap-y-0' : 'gap-x-8 gap-y-1'}`}>
+                    {q.options.map((opt, oIdx) => {
+                       const letter = String.fromCharCode(65 + oIdx);
+                       const isCorrect = letter === data.keys.mc[q.id];
+                       return (
+                        <div 
+                          key={oIdx} 
+                          className={`flex gap-2 items-start ${isInteractive ? 'mcq-option interactive-opt p-1 rounded' : ''}`}
+                          data-correct={isInteractive ? isCorrect : undefined}
+                        >
+                          <span className="font-bold text-xs mt-1">{letter}.</span>
+                          <PrintableField 
+                            value={opt.replace(/^([A-Da-d]|\d+)[.)\]]\s*/, '')}
+                            onChange={e => {
+                              const next = [...data.multipleChoice];
+                              next[i].options[oIdx] = e.target.value;
+                              update('multipleChoice', next);
+                            }}
+                            viewMode={viewMode}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+
+      case 'syntaxDeconstruction':
+        return (
+          <section key="syntaxDeconstruction" className="section-gap">
+            <h2 className="section-title">
+              {partLabels['syntaxDeconstruction']}: 🎨 Syntax Deconstruction
+            </h2>
+            <p className="italic text-sm mb-4 text-gray-600">
+              Instruction: Break down the following complex sentences into their component simple clauses.
+            </p>
+            {(data.syntaxDeconstruction || []).map((p, i) => (
+              <div key={p.id} className={`avoid-break ${isCompact ? 'mb-4' : 'mb-8'}`}>
+                <div className="flex gap-2 mb-2">
+                  <span className="font-serif italic text-gray-400">"{' '}"</span>
+                  <PrintableField 
+                    value={p.original}
+                    onChange={e => {
+                      const next = [...data.syntaxDeconstruction];
+                      next[i].original = e.target.value;
+                      update('syntaxDeconstruction', next);
+                    }}
+                    className="italic font-medium text-gray-800"
+                    viewMode={viewMode}
+                  />
+                   <span className="font-serif italic text-gray-400">"{' '}"</span>
+                </div>
+                {isInteractive ? (
+                   <textarea className="w-full border rounded p-2 text-sm bg-gray-50 h-20" placeholder="Type your answer here..." />
+                ) : (
+                  <>
+                    <div className="writing-line mt-2"></div>
+                    <div className="writing-line"></div>
+                  </>
+                )}
+              </div>
+            ))}
+          </section>
+        );
+
+      case 'writing':
+        return data.writingWorkshop && (
+          <section key="writing" className="section-gap pt-2">
+            <h2 className="section-title">
+              {partLabels['writing']}: ✍️ Writing & Logic Workshop
+            </h2>
+
+            <div className={isCompact ? 'space-y-6' : 'space-y-12'}>
+              
+              {visibleSections.has('writing_expansion') && (
+                <div>
+                  <h3 className="text-sm font-black uppercase mb-2 tracking-wider border-l-4 border-gray-300 pl-2">🌱 A. Sentence Expansion</h3>
+                  <p className="italic text-xs mb-3 text-gray-600">Combine the fact with the conjunction to create a complex sentence.</p>
+                  {(data.writingWorkshop.expansion || []).slice(0, 4).map((ex, i) => (
+                    <div key={i} className="mb-4 avoid-break">
+                      <div className="flex gap-2 items-baseline mb-1 text-[11pt]">
+                        <span className="font-bold">{i+1}.</span>
+                        <PrintableField 
+                          value={ex.fact}
+                          onChange={e => {
+                            const next = [...data.writingWorkshop.expansion];
+                            next[i].fact = e.target.value;
+                            update('writingWorkshop', { ...data.writingWorkshop, expansion: next });
+                          }}
+                          viewMode={viewMode}
+                        />
+                        <span className="font-black whitespace-nowrap">[{ (ex.conjunctions || []).join(' / ') }]</span>
+                      </div>
+                      {isInteractive ? (
+                         <input className="w-full border-b border-gray-300 bg-gray-50 p-1" placeholder="Type sentence..." />
+                      ) : (
+                        <>
+                          <div className="writing-line"></div>
+                          <div className="writing-line"></div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {visibleSections.has('writing_keywords') && (
+                <div>
+                  <h3 className="text-sm font-black uppercase mb-2 tracking-wider border-l-4 border-gray-300 pl-2">🗝️ B. Keyword Paragraph</h3>
+                  <p className="italic text-xs mb-3 text-gray-600">
+                    Using the keywords below, write a short paragraph reflecting the main points of the article. Do not copy sentences directly from the text.
+                  </p>
+                  
+                  {/* Grouped for Print Safety */}
+                  <div className="avoid-break">
+                    {/* Keywords Display */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {(data.writingWorkshop.keywords || []).map((kw, i) => (
+                        viewMode === 'editor' ? (
+                            <input 
+                            key={i}
+                            value={kw}
+                            onChange={e => {
+                                const next = [...data.writingWorkshop.keywords];
+                                next[i] = e.target.value;
+                                update('writingWorkshop', { ...data.writingWorkshop, keywords: next });
+                            }}
+                            className="px-2 py-1 border border-gray-300 text-sm font-bold w-32 text-center rounded bg-gray-50"
+                            />
+                        ) : (
+                            <span key={i} className="px-3 py-1 bg-gray-100 border border-gray-300 text-sm font-bold text-gray-800 rounded">
+                            {kw}
+                            </span>
+                        )
+                        ))}
+                    </div>
+
+                    {/* 5 Writing Lines */}
+                    <div className="mt-2">
+                        {isInteractive ? (
+                            <textarea className="w-full border rounded p-3 h-32 bg-gray-50 text-sm" placeholder="Write your paragraph here using the keywords..." />
+                        ) : (
+                            Array.from({ length: 5 }).map((_, i) => <div key={i} className="writing-line"></div>)
+                        )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {visibleSections.has('writing_qa') && (
+                <div>
+                  <h3 className="text-sm font-black uppercase mb-2 tracking-wider border-l-4 border-gray-300 pl-2">❓ C. The Q&A Chain</h3>
+                  <p className="italic text-xs mb-3 text-gray-600">Answer the questions to build a logical summary.</p>
+                  {(data.writingWorkshop.qaChain || []).map((q, i) => (
+                    <div key={i} className="mb-4 avoid-break">
+                      <div className="flex gap-2 items-baseline mb-1">
+                        <span className="font-bold">{i+1}.</span>
+                        <PrintableField 
+                          value={q}
+                          onChange={e => {
+                            const next = [...data.writingWorkshop.qaChain];
+                            next[i] = e.target.value;
+                            update('writingWorkshop', { ...data.writingWorkshop, qaChain: next });
+                          }}
+                          viewMode={viewMode}
+                        />
+                      </div>
+                      {isInteractive ? (
+                          <textarea className="w-full border rounded p-2 h-16 bg-gray-50" />
+                      ) : (
+                        <>
+                          <div className="writing-line"></div>
+                          <div className="writing-line"></div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {visibleSections.has('writing_critical') && (
+                <div className="avoid-break">
+                  <h3 className="text-sm font-black uppercase mb-2 tracking-wider border-l-4 border-gray-300 pl-2">💡 D. Critical Perspective</h3>
+                  <PrintableField 
+                    value={data.writingWorkshop.criticalThinking}
+                    onChange={e => update('writingWorkshop', { ...data.writingWorkshop, criticalThinking: e.target.value })}
+                    className="text-[11pt] font-bold mb-4"
+                    viewMode={viewMode}
+                  />
+                  <div>
+                  {isInteractive ? (
+                     <textarea className="w-full border rounded p-4 h-48 bg-gray-50" placeholder="Write your critical evaluation here..." />
+                  ) : (
+                    Array.from({ length: 8 }).map((_, i) => <div key={i} className="writing-line"></div>)
+                  )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        );
+        
+      default:
+        return null;
+    }
+  };
+
+  const renderKeySection = (sectionId: string) => {
+    switch (sectionId) {
+        case 'summary':
+            return (
+                <div key="key-summary" className="avoid-break">
+                  <h3 className="text-blue-900 mb-4 uppercase tracking-wider border-b pb-2 section-title">{partLabels['summary']} Answers</h3>
+                  <div className="grid grid-cols-2 gap-x-12 gap-y-3">
+                    {(data.keys.summary || []).map((k, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <span className="font-black text-gray-500 w-8">({i + 1})</span>
+                        <PrintableField 
+                          value={k}
+                          onChange={e => {
+                            const next = [...data.keys.summary];
+                            next[i] = e.target.value;
+                            update('keys', { ...data.keys, summary: next });
+                          }}
+                          className="font-mono text-sm"
+                          viewMode={viewMode}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+            );
+        case 'mc':
+            return (
+                <div key="key-mc" className="avoid-break">
+                  <h3 className="text-blue-900 mb-4 uppercase tracking-wider border-b pb-2 section-title">{partLabels['mc']} Answers</h3>
+                  <div className="grid grid-cols-5 gap-4">
+                    {(data.multipleChoice || []).map((q, i) => (
+                      <div key={q.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                        <span className="font-black text-gray-500">{i + 1}:</span>
+                        <span className="w-10 font-bold text-center inline-block">{data.keys.mc[q.id] || ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+            );
+        case 'syntaxDeconstruction':
+            return (data.keys.syntaxDeconstruction || []).map((p, i) => (
+                <div key={`key-para-${i}`} className="bg-gray-50 p-4 rounded border avoid-break">
+                   <div className="text-[9pt] font-black text-gray-400 uppercase mb-1">Deconstruction {i+1} ({partLabels['syntaxDeconstruction']})</div>
+                   <PrintableField 
+                      value={p}
+                      onChange={e => {
+                        const next = [...data.keys.syntaxDeconstruction];
+                        next[i] = e.target.value;
+                        update('keys', { ...data.keys, syntaxDeconstruction: next });
+                      }}
+                      className="italic text-gray-700"
+                      viewMode={viewMode}
+                    />
+                </div>
+            ));
+        case 'writing':
+            return (
+                <div key="key-writing" className="space-y-6 avoid-break">
+                  <h3 className="text-blue-900 mb-2 uppercase tracking-wider border-b pb-2 section-title">{partLabels['writing']} Suggestions</h3>
+                  
+                  {visibleSections.has('writing_keywords') && (
+                    <div className="bg-blue-50 p-4 border rounded border-blue-200 avoid-break">
+                      <div className="text-[9pt] font-black text-blue-900 uppercase mb-2">Keywords</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(data.writingWorkshop.keywords || []).map((kw, i) => (
+                           <span key={i} className="px-2 py-1 bg-white border border-blue-300 rounded text-sm font-bold text-blue-800">{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {visibleSections.has('writing_critical') && (
+                    <div className="bg-blue-50 p-4 border-l-4 border-blue-900 rounded-r avoid-break">
+                       <div className="text-[9pt] font-black text-blue-900 uppercase mb-1">Critical Thinking Guide</div>
+                       <PrintableField 
+                          value={data.keys.critical}
+                          onChange={e => update('keys', { ...data.keys, critical: e.target.value })}
+                          className="text-blue-900"
+                          viewMode={viewMode}
+                        />
+                    </div>
+                  )}
+                </div>
+            );
+        default: return null;
+    }
+  }
+
+  return (
+    <div className={`paper mx-auto bg-white p-8 md:p-12 shadow-sm ${viewMode === 'editor' ? 'min-h-[29.7cm]' : ''} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : 'max-w-[210mm]'}`}>
+      {/* Header */}
+      <div className="mb-8 border-b-2 border-gray-800 pb-4">
+          <div className="flex justify-between items-end">
+              <div>
+                  <h1 className="text-3xl font-black uppercase tracking-widest text-gray-900 mb-2">
+                    <PrintableField 
+                        value={data.title} 
+                        onChange={(e) => update('title', e.target.value)} 
+                        viewMode={viewMode}
+                        tagName="h1"
+                        placeholder="Untitled Worksheet"
+                     />
+                  </h1>
+                  <div className="flex gap-4 text-sm font-bold text-gray-600 uppercase tracking-wider">
+                      <span>Level: {settings.difficulty}</span>
+                      {settings.teacherName && <span>Instructor: {settings.teacherName}</span>}
+                  </div>
+              </div>
+              <div className="text-right">
+                  <div className="text-xs font-bold text-gray-400 uppercase">Date</div>
+                  <div className="w-32 border-b-2 border-gray-300 h-6"></div>
+              </div>
+          </div>
+      </div>
+      
+      {/* Sections */}
+      {sectionOrder.map(id => {
+         if (!visibleSections.has(id)) return null;
+         return (
+            <React.Fragment key={id}>
+                {renderSection(id)}
+            </React.Fragment>
+         );
+      })}
+
+      {/* Keys */}
+      {visibleSections.has('keys') && (
+          <div className="mt-12 pt-8 border-t-4 border-double border-gray-300 page-break force-break-key">
+              <h2 className="text-2xl font-black uppercase text-center mb-8 text-gray-400">Answer Key</h2>
+              {sectionOrder.map(id => renderKeySection(id))}
+          </div>
+      )}
+      
+      {/* Interactive Script Injection */}
+      {isInteractive && (
+           <script dangerouslySetInnerHTML={{ __html: INTERACTIVE_SCRIPT }} />
+      )}
+    </div>
+  );
+};
+
+export { Toggle };
+export default WorksheetPaper;
+
