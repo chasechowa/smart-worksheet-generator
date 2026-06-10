@@ -457,44 +457,51 @@ export default function App() {
     <div className={`space-y-6 ${isCompact ? '' : 'w-full max-w-4xl mx-auto'}`}>
       {!isCompact && (
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-black text-blue-900 uppercase tracking-widest mb-2">Worksheet Generator</h1>
-          <p className="text-gray-400 text-sm font-medium">Paste an article to generate reading comprehension worksheets</p>
+          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 uppercase tracking-[0.15em] mb-3">
+            Smart Worksheet
+          </h1>
+          <div className="inline-flex items-center gap-3 mb-3">
+            <div className="h-px flex-1 w-8 bg-gradient-to-r from-transparent to-indigo-300"></div>
+            <span className="text-xs font-bold tracking-[0.25em] text-indigo-400 uppercase bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">OTIA EXCLUSIVE</span>
+            <div className="h-px flex-1 w-8 bg-gradient-to-l from-transparent to-indigo-300"></div>
+          </div>
+          <p className="text-gray-400 text-sm font-medium">AI-Powered Reading Comprehension Worksheet Generator</p>
         </div>
       )}
 
       <div>
-        <label className="text-xs font-bold uppercase text-gray-400 block mb-2">Article Text</label>
+        <label className="text-xs font-bold uppercase text-gray-400 block mb-2 tracking-wide">Article Text</label>
         <textarea
           value={article}
           onChange={e => setArticle(e.target.value)}
-          className={`w-full border rounded p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none ${isCompact ? 'h-32' : 'h-64'}`}
+          className={`w-full border border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-none transition-shadow bg-white/90 placeholder-gray-300 ${isCompact ? 'h-32' : 'h-64'}`}
           placeholder="Paste article content here..."
         />
       </div>
 
-      <div className={isCompact ? '' : 'flex gap-4'}>
+      <div className={isCompact ? 'space-y-3' : 'flex gap-4'}>
         <div className={isCompact ? '' : 'flex-1'}>
-          <label className="text-xs font-bold uppercase text-gray-400 block mb-2">Level</label>
+          <label className="text-xs font-bold uppercase text-gray-400 block mb-2 tracking-wide">Level</label>
           <select
             value={settings.difficulty}
             onChange={e => setSettings({...settings, difficulty: e.target.value as Difficulty})}
-            className="w-full border rounded p-2 text-sm"
+            className="w-full border border-gray-200 rounded-xl p-2.5 text-sm bg-white/90 focus:ring-2 focus:ring-indigo-400 outline-none transition-shadow"
           >
-            <option value="A2">A2 (Elem)</option>
-            <option value="B1">B1 (Inter)</option>
-            <option value="B2">B2 (Upper)</option>
-            <option value="C1">C1 (Adv)</option>
+            <option value="A2">A2 (Elementary)</option>
+            <option value="B1">B1 (Intermediate)</option>
+            <option value="B2">B2 (Upper Intermediate)</option>
+            <option value="C1">C1 (Advanced)</option>
           </select>
         </div>
 
         {!isCompact && (
           <div className="flex-1">
-            <label className="text-xs font-bold uppercase text-gray-400 block mb-2">Instructor</label>
+            <label className="text-xs font-bold uppercase text-gray-400 block mb-2 tracking-wide">Instructor</label>
             <input
               value={settings.teacherName}
               onChange={e => setSettings({...settings, teacherName: e.target.value})}
               placeholder="Name (optional)"
-              className="w-full border rounded p-2 text-sm"
+              className="w-full border border-gray-200 rounded-xl p-2.5 text-sm bg-white/90 focus:ring-2 focus:ring-indigo-400 outline-none transition-shadow placeholder-gray-300"
             />
           </div>
         )}
@@ -502,9 +509,10 @@ export default function App() {
 
       <button
         onClick={() => setShowConfig(true)}
-        className="w-full py-2 rounded font-bold text-xs bg-gray-200 hover:bg-gray-300 transition-colors flex items-center justify-center gap-1"
+        className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 transition-all flex items-center justify-center gap-1.5"
       >
-        <span>⚙</span> AI Configuration
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        AI Configuration
       </button>
 
       {showConfig && (
@@ -524,9 +532,21 @@ export default function App() {
       <button
         onClick={handleGenerate}
         disabled={loading || !article}
-        className={`w-full py-3 rounded font-bold text-white shadow transition-all text-lg ${loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}
+        className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all text-lg tracking-wide ${
+          loading
+            ? 'bg-gray-400 cursor-not-allowed'
+            : 'bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-700 shadow-indigo-500/25 hover:shadow-indigo-500/40 active:scale-[0.98]'
+        }`}
       >
-        {loading ? loadingMessage : 'Generate Worksheet'}
+        {loading ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            {loadingMessage}
+          </span>
+        ) : 'Generate Worksheet'}
       </button>
 
       {error && <div className="text-red-600 text-xs bg-red-50 p-2 rounded border border-red-200">{error}</div>}
@@ -563,8 +583,11 @@ export default function App() {
 
       {!data ? (
         // === CENTERED INPUT LAYOUT (before generation) ===
-        <div className="min-h-screen flex items-center justify-center p-6 no-print">
-          {renderInputCore(false)}
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 no-print bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+          <div className="w-full max-w-3xl bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-indigo-500/5 border border-indigo-100/50 p-8">
+            {renderInputCore(false)}
+          </div>
+          <p className="mt-8 text-[11px] text-gray-300 font-medium tracking-wider uppercase">CHASECCC</p>
         </div>
       ) : (
         // === SPLIT SIDEBAR LAYOUT (after generation) ===
@@ -572,10 +595,13 @@ export default function App() {
           {/* Sidebar */}
           <div className="fixed top-0 left-0 h-full w-80 bg-white border-r shadow-lg p-6 overflow-y-auto hidden lg:block no-print z-50">
             <div className="flex items-start justify-between mb-4">
-              <h1 className="text-xl font-black text-blue-900 uppercase tracking-wider">Worksheet<br/>Generator</h1>
+              <div>
+                <h1 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 uppercase tracking-wider">Smart Worksheet</h1>
+                <span className="text-[9px] font-bold tracking-[0.2em] text-indigo-400 uppercase">OTIA EXCLUSIVE</span>
+              </div>
               <button
                 onClick={handleReset}
-                className="text-xs text-gray-400 hover:text-blue-600 font-bold transition-colors mt-1"
+                className="text-xs text-gray-400 hover:text-indigo-600 font-bold transition-colors mt-1"
                 title="Back to home"
               >
                 <i className="fas fa-home mr-1"></i>Home
@@ -667,14 +693,14 @@ export default function App() {
             </div>
 
             <div className="flex gap-2 pt-4">
-              <button onClick={() => window.print()} className="flex-1 bg-gray-800 text-white py-2 rounded font-bold text-sm hover:bg-black" title="Print">
-                <i className="fas fa-print"></i>
+              <button onClick={() => window.print()} className="flex-1 bg-gray-800 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-gray-900 transition-colors" title="Print">
+                <i className="fas fa-print mr-1"></i>Print
               </button>
-              <button onClick={handleExportHTML} className="flex-1 bg-green-600 text-white py-2 rounded font-bold text-sm hover:bg-green-700" title="Export HTML">
-                 <i className="fas fa-file-code"></i>
+              <button onClick={handleExportHTML} className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-2.5 rounded-xl font-bold text-xs hover:from-emerald-600 hover:to-teal-700 transition-all" title="Export HTML">
+                 <i className="fas fa-file-code mr-1"></i>HTML
               </button>
-              <button onClick={handleExportPDF} className="flex-1 bg-red-600 text-white py-2 rounded font-bold text-sm hover:bg-red-700" title="Export PDF">
-                 <i className="fas fa-file-pdf"></i>
+              <button onClick={handleExportPDF} className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 text-white py-2.5 rounded-xl font-bold text-xs hover:from-rose-600 hover:to-pink-700 transition-all" title="Export PDF">
+                 <i className="fas fa-file-pdf mr-1"></i>PDF
               </button>
             </div>
           </div>
@@ -682,12 +708,15 @@ export default function App() {
           {/* Main Area */}
           <div className="lg:ml-80 min-h-screen">
              {/* Mobile Nav */}
-             <div className="lg:hidden bg-white shadow p-4 flex justify-between items-center no-print sticky top-0 z-40">
-                <h1 className="font-bold text-blue-900">Worksheet Gen</h1>
+             <div className="lg:hidden bg-white/90 backdrop-blur-sm shadow-sm border-b border-gray-100 p-4 flex justify-between items-center no-print sticky top-0 z-40">
+                <div>
+                  <h1 className="font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 text-sm uppercase tracking-wider">Smart Worksheet</h1>
+                  <span className="text-[8px] font-bold tracking-[0.2em] text-indigo-400 uppercase">OTIA EXCLUSIVE</span>
+                </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleReset}
-                    className="text-xs text-gray-500 hover:text-blue-600 font-bold"
+                    className="text-xs text-gray-500 hover:text-indigo-600 font-bold transition-colors"
                   >
                     <i className="fas fa-home mr-1"></i>Home
                   </button>
@@ -709,6 +738,7 @@ export default function App() {
                   onUpdate={(key, val) => setData({...data, [key]: val})}
                   viewMode={viewMode}
                 />
+                <p className="mt-12 text-center text-[11px] text-gray-300 font-medium tracking-wider uppercase no-print">CHASECCC</p>
              </div>
           </div>
         </>
