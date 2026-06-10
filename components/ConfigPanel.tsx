@@ -5,9 +5,10 @@ import { getAllConfigs, getActiveProvider, setActiveProvider, saveProviderConfig
 
 interface ConfigPanelProps {
   embedded?: boolean;
+  onSaved?: () => void;
 }
 
-export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded }) => {
+export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) => {
   const [provider, setProvider] = useState<AIProvider>(getActiveProvider());
   const [configs, setConfigs] = useState<Record<AIProvider, any>>(getAllConfigs());
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -30,7 +31,10 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded }) => {
     saveProviderConfig(provider, { ...currentConfig, enabled: true });
     setTestStatus('success');
     setTestMessage('Configuration saved');
-    setTimeout(() => setTestStatus('idle'), 2000);
+    setTimeout(() => {
+      setTestStatus('idle');
+      onSaved?.();
+    }, 800);
   };
 
   const handleProviderChange = (p: AIProvider) => {
@@ -104,6 +108,29 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded }) => {
           onChange={e => updateConfig({ apiKey: e.target.value })}
           placeholder="Enter your API key"
           className="w-full border rounded p-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">
+          API Proxy <span className="text-green-600">✓ 已内置</span>
+        </label>
+        <div className="w-full border rounded p-2 text-sm bg-green-50 text-green-800 font-mono text-xs">
+          api.comprequiz.chao.asia
+        </div>
+        <div className="text-[9px] text-gray-400 mt-1">
+          默认使用内置 CF Worker 代理。国内用户如需自建代理，可覆盖：
+        </div>
+        <input
+          type="text"
+          value={localStorage.getItem('vocabforge_custom_proxy') || ''}
+          onChange={e => {
+            const val = e.target.value.trim();
+            if (val) localStorage.setItem('vocabforge_custom_proxy', val);
+            else localStorage.removeItem('vocabforge_custom_proxy');
+          }}
+          placeholder="自建代理地址（可选，留空使用内置）"
+          className="w-full border rounded p-2 text-sm mt-1"
         />
       </div>
 

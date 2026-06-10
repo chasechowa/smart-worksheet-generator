@@ -1,26 +1,82 @@
 import type { Project, ProjectMeta } from '../types';
 
-function getAPI() {
-  const api = (window as any).electronAPI;
-  if (!api) throw new Error('Electron API not available');
-  return api;
+const STORAGE_KEY = 'worksheet_projects';
+
+// ---------------------------------------------------------------------------
+// localStorage fallback (web browser — no Electron)
+// ---------------------------------------------------------------------------
+
+function isElectron(): boolean {
+  return !!(window as any).electronAPI;
 }
 
+function loadFromLocalStorage(): Record<string, Project> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, Project>;
+  } catch {
+    return {};
+  }
+}
+
+function saveToLocalStorage(projects: Record<string, Project>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  } catch { /* quota exceeded — silently fail */ }
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 export async function getProjects(): Promise<ProjectMeta[]> {
-  return getAPI().fsList();
+  if (isElectron()) {
+    return (window as any).electronAPI.fsList();
+  }
+  // Browser: read from localStorage
+  const all = loadFromLocalStorage();
+  return Object.values(all)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .map(p => ({
+      id: p.id,
+      title: p.title,
+      difficulty: p.difficulty,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      worksheetCount: p.worksheets.length,
+    }));
 }
 
 export async function getProject(id: string): Promise<Project> {
-  return getAPI().fsRead(id);
+  if (isElectron()) {
+    return (window as any).electronAPI.fsRead(id);
+  }
+  const all = loadFromLocalStorage();
+  const project = all[id];
+  if (!project) throw new Error(`Project ${id} not found`);
+  return project;
 }
 
 export async function saveProject(project: Project): Promise<void> {
   const updated = { ...project, updatedAt: Date.now() };
-  await getAPI().fsWrite(updated);
+  if (isElectron()) {
+    await (window as any).electronAPI.fsWrite(updated);
+    return;
+  }
+  const all = loadFromLocalStorage();
+  all[updated.id] = updated;
+  saveToLocalStorage(all);
 }
 
 export async function deleteProject(id: string): Promise<void> {
-  await getAPI().fsDelete(id);
+  if (isElectron()) {
+    await (window as any).electronAPI.fsDelete(id);
+    return;
+  }
+  const all = loadFromLocalStorage();
+  delete all[id];
+  saveToLocalStorage(all);
 }
 
 export function exportProject(project: Project): string {

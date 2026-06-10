@@ -33,3 +33,4 @@ export * from './mcValidator';
 export * from './syntaxValidator';
 export * from './writingValidator';
 export * from './keysValidator';
+export * from './verbatimMatcher';

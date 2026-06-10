@@ -1,0 +1,6 @@
+name = "smart-worksheet-proxy"
+main = "api-proxy.js"
+compatibility_date = "2025-01-01"
+
+# 免费计划：每天 100,000 请求
+# 无需 KV、D1 等额外绑定

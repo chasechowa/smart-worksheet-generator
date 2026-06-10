@@ -32,7 +32,7 @@ describe('validatorService', () => {
       summary: { paragraph: 'The [BLANK] fox', blanks: ['quick'] },
       multipleChoice: Array.from({ length: 10 }, (_, i) => ({
         id: `q${i}`,
-        type: i < 2 ? 'Finding Evidence' : 'Main Idea',
+        type: i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension',
         question: 'Q?',
         options: ['A. One', 'B. Two', 'C. Three', 'D. Four'],
         answer: 'B',

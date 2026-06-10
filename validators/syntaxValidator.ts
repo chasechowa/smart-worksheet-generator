@@ -1,12 +1,5 @@
 import type { WorksheetData, ValidationIssue } from '../types';
-
-function similarity(a: string, b: string): number {
-  const longer = a.length > b.length ? a : b;
-  const shorter = a.length > b.length ? b : a;
-  if (longer.length === 0) return 1.0;
-  const distance = longer.split('').filter((c, i) => c !== shorter[i]).length + Math.abs(longer.length - shorter.length);
-  return (longer.length - distance) / longer.length;
-}
+import { findVerbatimMatch, describeMatch } from './verbatimMatcher';
 
 export function validateSyntax(data: WorksheetData, articleText: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -32,23 +25,6 @@ export function validateSyntax(data: WorksheetData, articleText: string): Valida
       return;
     }
 
-    // Check if original sentence appears in article (with similarity)
-    const sentences = articleText.split(/[.!?]+/).map(s => s.trim());
-    const bestMatch = sentences.reduce((best, sentence) => {
-      const sim = similarity(item.original.toLowerCase(), sentence.toLowerCase());
-      return sim > best.sim ? { sim, sentence } : best;
-    }, { sim: 0, sentence: '' });
-
-    if (bestMatch.sim < 0.5) {
-      issues.push({
-        type: 'rule',
-        section: 'syntax',
-        severity: 'warning',
-        message: `Syntax item ${i + 1}: original sentence not closely matching article text`,
-        suggestion: 'Sentence should be extracted or closely paraphrased from the article',
-      });
-    }
-
     if (!item.answer || item.answer.trim().length === 0) {
       issues.push({
         type: 'structure',
@@ -56,6 +32,46 @@ export function validateSyntax(data: WorksheetData, articleText: string): Valida
         severity: 'error',
         message: `Syntax item ${i + 1}: answer is empty`,
       });
+    }
+
+    // ---- Verbatim verification (tiered) ----
+    // Syntax items are full sentences; they should match exactly or near-exactly.
+    const result = findVerbatimMatch(item.original, articleText);
+
+    switch (result.status) {
+      case 'exact':
+        // Clean match — no issue.
+        if (!result.boundaryPreserved) {
+          issues.push({
+            type: 'rule',
+            section: 'syntax',
+            severity: 'warning',
+            message: `Syntax item ${i + 1}: original sentence found but embedded in longer text (confidence: ${result.confidence})`,
+            suggestion: 'Extract the exact standalone sentence from the article',
+          });
+        }
+        break;
+
+      case 'partial':
+        issues.push({
+          type: 'rule',
+          section: 'syntax',
+          severity: 'warning',
+          message: `Syntax item ${i + 1}: sentence words all appear but NOT as a contiguous phrase (${describeMatch(result)})`,
+          suggestion: 'Original sentence must be copied verbatim from the article — no rewording allowed',
+        });
+        break;
+
+      case 'fuzzy':
+      case 'missing':
+        issues.push({
+          type: 'rule',
+          section: 'syntax',
+          severity: 'warning',
+          message: `Syntax item ${i + 1}: original sentence not closely matching article text (${describeMatch(result)})`,
+          suggestion: 'Sentence should be extracted verbatim from the article',
+        });
+        break;
     }
   });
 

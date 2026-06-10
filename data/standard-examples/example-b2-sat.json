@@ -8,7 +8,7 @@
   "multipleChoice": [
     {
       "id": "q1",
-      "type": "Main Idea",
+      "type": "Literal Comprehension",
       "question": "Which choice best captures the central claim of the passage?",
       "options": ["Urban agriculture is replacing traditional farming entirely", "New farming methods offer solutions for cities with limited space", "Hydroponic systems are the most efficient way to grow food", "Cities should expand onto existing farmland"],
       "answer": "B",
@@ -16,7 +16,7 @@
     },
     {
       "id": "q2",
-      "type": "Finding Evidence",
+      "type": "Evidence Reasoning",
       "question": "Which choice provides the best evidence for the claim that urban agriculture is viable?",
       "options": ["'As cities expand'", "'Vertical farms, rooftop gardens, and hydroponic systems'", "'transforming how we think'", "'feed growing populations'"],
       "answer": "B",
@@ -24,7 +24,7 @@
     },
     {
       "id": "q3",
-      "type": "Detail & Inference",
+      "type": "Inference",
       "question": "The passage suggests that urban agriculture is necessary primarily because...",
       "options": ["traditional farmers lack modern technology", "city populations are increasing while farmland decreases", "hydroponic systems are cheaper than soil farming", "consumers prefer locally grown vegetables"],
       "answer": "B",
@@ -32,7 +32,7 @@
     },
     {
       "id": "q4",
-      "type": "Function/Tone",
+      "type": "Rhetorical Function",
       "question": "The author's tone in describing urban agriculture can best be described as...",
       "options": ["skeptical and cautious", "enthusiastic but balanced", "dismissive of traditional methods", "urgent and alarmed"],
       "answer": "B",
@@ -48,7 +48,7 @@
     },
     {
       "id": "q6",
-      "type": "Finding Evidence",
+      "type": "Evidence Reasoning",
       "question": "Which phrase from the passage indicates a limitation of traditional farming?",
       "options": ["'urban agriculture'", "'arable land shrinks'", "'feed growing populations'", "'viable solution'"],
       "answer": "B",
@@ -56,7 +56,7 @@
     },
     {
       "id": "q7",
-      "type": "Main Idea",
+      "type": "Literal Comprehension",
       "question": "The author would most likely agree with which statement?",
       "options": ["Cities should ban traditional farms", "Urban agriculture complements existing food systems", "Hydroponics will make soil farming obsolete", "Population growth is not a concern for food security"],
       "answer": "B",
@@ -64,7 +64,7 @@
     },
     {
       "id": "q8",
-      "type": "Detail & Inference",
+      "type": "Inference",
       "question": "According to the passage, urban agriculture involves all of the following EXCEPT...",
       "options": ["vertical farms", "rooftop gardens", "hydroponic systems", "genetic modification of crops"],
       "answer": "D",
@@ -80,7 +80,7 @@
     },
     {
       "id": "q10",
-      "type": "Function/Tone",
+      "type": "Rhetorical Function",
       "question": "The primary purpose of the passage is to...",
       "options": ["criticize urban development policies", "describe innovations in city-based food production", "argue for more agricultural subsidies", "compare farming methods across cultures"],
       "answer": "B",

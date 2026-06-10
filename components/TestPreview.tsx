@@ -112,13 +112,28 @@ const WorksheetPaper: React.FC<{
             <h2 className="section-title">
               {partLabels['summary']}: 🧩 Summary Completion
             </h2>
+            {/* Always show blanks as split text — never raw [BLANK] tokens */}
             {viewMode === 'editor' ? (
-              <textarea 
-                rows={Math.ceil((data.summary.paragraph || "").length / 80)}
-                value={data.summary.paragraph || ""}
-                onChange={e => update('summary', { ...data.summary, paragraph: e.target.value })}
-                className="w-full text-justify text-[11pt] leading-loose no-print bg-transparent resize-none p-2 rounded hover:bg-gray-50 transition-colors"
-              />
+              <div className={`text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
+                {(data.summary.paragraph || "").split('[BLANK]').map((chunk, i, arr) => (
+                  <React.Fragment key={i}>
+                    <span className="text-[11pt]">{chunk}</span>
+                    {i < arr.length - 1 && (
+                      <input
+                        type="text"
+                        value={data.summary.blanks?.[i] || data.keys?.summary?.[i] || ''}
+                        onChange={e => {
+                          const next = [...(data.summary.blanks || [])];
+                          next[i] = e.target.value;
+                          update('summary', { ...data.summary, blanks: next });
+                        }}
+                        className="inline border-b-2 border-gray-400 bg-gray-50 mx-1 text-center text-[11pt] font-bold text-blue-700 min-w-[80px] focus:outline-none focus:border-blue-500 focus:bg-blue-50 rounded-t"
+                        placeholder={`(${i + 1})`}
+                      />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
             ) : (
               <div className={`text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
                 {(data.summary.paragraph || "").split('[BLANK]').map((chunk, i, arr) => (
@@ -126,14 +141,13 @@ const WorksheetPaper: React.FC<{
                     {chunk}
                     {i < arr.length - 1 && (
                       isInteractive ? (
-                        <input 
-                          type="text" 
-                          className="check-input interactive-input mx-1 w-32 text-center" 
+                        <input
+                          type="text"
+                          className="check-input interactive-input mx-1 w-32 text-center"
                           data-answer={data.keys.summary[i] || ''}
                           placeholder={`(${i + 1})`}
                         />
                       ) : (
-                        // REQ: Summary blanks converted to underscores
                         <span className="mx-1 font-bold whitespace-nowrap">
                            _______({i + 1})_______
                         </span>
@@ -437,10 +451,37 @@ const WorksheetPaper: React.FC<{
             return (
                 <div key="key-writing" className="space-y-6 avoid-break">
                   <h3 className="text-blue-900 mb-2 uppercase tracking-wider border-b pb-2 section-title">{partLabels['writing']} Suggestions</h3>
-                  
+
+                  {visibleSections.has('writing_expansion') && (
+                    <div className="bg-blue-50 p-4 border rounded border-blue-200 avoid-break">
+                      <div className="text-[9pt] font-black text-blue-900 uppercase mb-3">A. Sentence Expansion — Model Answers</div>
+                      <div className="space-y-3">
+                        {(data.writingWorkshop.expansion || []).slice(0, 4).map((ex, i) => (
+                          <div key={ex.id || i} className="bg-white p-3 rounded border border-blue-100">
+                            <div className="text-xs font-bold text-gray-500 mb-1">Fact {i + 1}: {ex.fact}</div>
+                            <div className="text-xs text-gray-600 mb-1">Conjunctions: [{ex.conjunctions?.join(' / ') || '—'}]</div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-[10px] font-black text-blue-600 mt-0.5 shrink-0">KEY:</span>
+                              <PrintableField
+                                value={data.keys.expansion?.[i] || ''}
+                                onChange={e => {
+                                  const next = [...(data.keys.expansion || [])];
+                                  next[i] = e.target.value;
+                                  update('keys', { ...data.keys, expansion: next });
+                                }}
+                                className="text-sm text-blue-800 italic flex-1"
+                                viewMode={viewMode}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {visibleSections.has('writing_keywords') && (
                     <div className="bg-blue-50 p-4 border rounded border-blue-200 avoid-break">
-                      <div className="text-[9pt] font-black text-blue-900 uppercase mb-2">Keywords</div>
+                      <div className="text-[9pt] font-black text-blue-900 uppercase mb-2">B. Keywords</div>
                       <div className="flex flex-wrap gap-2">
                         {(data.writingWorkshop.keywords || []).map((kw, i) => (
                            <span key={i} className="px-2 py-1 bg-white border border-blue-300 rounded text-sm font-bold text-blue-800">{kw}</span>
@@ -449,10 +490,36 @@ const WorksheetPaper: React.FC<{
                     </div>
                   )}
 
+                  {visibleSections.has('writing_qa') && (
+                    <div className="bg-blue-50 p-4 border rounded border-blue-200 avoid-break">
+                      <div className="text-[9pt] font-black text-blue-900 uppercase mb-3">C. Q&A Chain — Model Answers</div>
+                      <div className="space-y-3">
+                        {(data.writingWorkshop.qaChain || []).map((q, i) => (
+                          <div key={i} className="bg-white p-3 rounded border border-blue-100">
+                            <div className="text-xs font-semibold text-gray-700 mb-1">Q{i + 1}: {q}</div>
+                            <div className="flex items-start gap-2">
+                              <span className="text-[10px] font-black text-blue-600 mt-0.5 shrink-0">A:</span>
+                              <PrintableField
+                                value={data.keys.qa?.[i] || ''}
+                                onChange={e => {
+                                  const next = [...(data.keys.qa || [])];
+                                  next[i] = e.target.value;
+                                  update('keys', { ...data.keys, qa: next });
+                                }}
+                                className="text-sm text-blue-800 italic flex-1"
+                                viewMode={viewMode}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {visibleSections.has('writing_critical') && (
                     <div className="bg-blue-50 p-4 border-l-4 border-blue-900 rounded-r avoid-break">
-                       <div className="text-[9pt] font-black text-blue-900 uppercase mb-1">Critical Thinking Guide</div>
-                       <PrintableField 
+                       <div className="text-[9pt] font-black text-blue-900 uppercase mb-1">D. Critical Thinking Guide</div>
+                       <PrintableField
                           value={data.keys.critical}
                           onChange={e => update('keys', { ...data.keys, critical: e.target.value })}
                           className="text-blue-900"

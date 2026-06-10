@@ -35,32 +35,17 @@ export function validateKeys(data: WorksheetData): ValidationIssue[] {
       return;
     }
 
-    // Semantic check: key letter must point to the correct answer option
+    // Semantic check: key letter must match the answer field (both are letters)
     const question = mcMap.get(qid);
     if (question) {
-      const keyIdx = keyLetter.charCodeAt(0) - 65;
-      const optionAtKey = question.options[keyIdx];
-      const answerText = question.answer;
-
-      // Answer may be a letter (already normalized) or the option text
-      if (/^[A-D]$/i.test(answerText)) {
-        const answerIdx = answerText.toUpperCase().charCodeAt(0) - 65;
-        if (answerIdx !== keyIdx) {
-          issues.push({
-            type: 'rule',
-            section: 'keys',
-            severity: 'error',
-            message: `MC key for ${qid} is ${keyLetter}, but question's answer is ${answerText.toUpperCase()}`,
-            suggestion: `Key should be ${answerText.toUpperCase()} to match the answer field`,
-          });
-        }
-      } else if (optionAtKey != null && optionAtKey.toLowerCase().trim() !== answerText.toLowerCase().trim()) {
+      const answerLetter = question.answer?.toUpperCase() || '';
+      if (/^[A-D]$/.test(answerLetter) && answerLetter !== keyLetter) {
         issues.push({
           type: 'rule',
           section: 'keys',
-          severity: 'warning',
-          message: `MC key for ${qid} is ${keyLetter} ("${optionAtKey}"), but answer field is "${answerText}"`,
-          suggestion: 'Key letter should point to the option matching the answer field',
+          severity: 'error',
+          message: `MC key for ${qid} is ${keyLetter}, but question's answer is ${answerLetter}`,
+          suggestion: `Key should be ${answerLetter} to match the answer field`,
         });
       }
     }

@@ -1,4 +1,5 @@
 import type { WorksheetData, ValidationIssue } from '../types';
+import { findVerbatimMatch, describeMatch } from './verbatimMatcher';
 
 const DEFAULT_CONJUNCTIONS = ['however', 'therefore', 'moreover', 'consequently'];
 
@@ -26,7 +27,7 @@ export function validateWriting(data: WorksheetData, articleText: string): Valid
     }
   });
 
-  // Keywords
+  // Keywords — verbatim verification
   const keywords = ww.keywords || [];
   if (keywords.length !== 5) {
     issues.push({ type: 'rule', section: 'writing', severity: 'error', message: `Expected exactly 5 keywords, got ${keywords.length}` });
@@ -34,8 +35,45 @@ export function validateWriting(data: WorksheetData, articleText: string): Valid
   keywords.forEach((kw, i) => {
     if (!kw || kw.trim().length === 0) {
       issues.push({ type: 'structure', section: 'writing', severity: 'error', message: `Keyword ${i + 1} is empty` });
-    } else if (!articleText.toLowerCase().includes(kw.toLowerCase())) {
-      issues.push({ type: 'rule', section: 'writing', severity: 'warning', message: `Keyword "${kw}" not found in article text` });
+      return;
+    }
+
+    const result = findVerbatimMatch(kw, articleText);
+
+    switch (result.status) {
+      case 'exact':
+        // Clean match — no issue. Embedded match is acceptable for keywords.
+        break;
+
+      case 'partial':
+        issues.push({
+          type: 'rule',
+          section: 'writing',
+          severity: 'warning',
+          message: `Keyword "${kw}" words all found individually but NOT as a contiguous phrase (${describeMatch(result)})`,
+          suggestion: 'Keyword should appear as an exact phrase in the article',
+        });
+        break;
+
+      case 'fuzzy':
+        issues.push({
+          type: 'rule',
+          section: 'writing',
+          severity: 'warning',
+          message: `Keyword "${kw}" only partially matches article text (${describeMatch(result)})`,
+          suggestion: 'Keyword should appear literally in the article',
+        });
+        break;
+
+      case 'missing':
+        issues.push({
+          type: 'rule',
+          section: 'writing',
+          severity: 'warning',
+          message: `Keyword "${kw}" not found in article text (${describeMatch(result)})`,
+          suggestion: 'Keywords must be words or phrases that literally appear in the article',
+        });
+        break;
     }
   });
 

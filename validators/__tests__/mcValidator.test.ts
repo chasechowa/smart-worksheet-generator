@@ -14,10 +14,12 @@ function createMCData(questions: MCQuestion[]): WorksheetData {
   };
 }
 
-function makeQuestion(type: string, answer: string, options?: string[]): MCQuestion {
+import type { MCQuestionType } from '../../types';
+
+function makeQuestion(type: MCQuestionType, answer: string, options?: string[]): MCQuestion {
   return {
     id: `q${Math.random()}`,
-    type: type as any,
+    type,
     question: 'Test question?',
     options: options || ['Alpha', 'Beta', 'Gamma', 'Delta'],
     answer,
@@ -27,14 +29,14 @@ function makeQuestion(type: string, answer: string, options?: string[]): MCQuest
 
 describe('validateMC', () => {
   it('flags wrong question count', () => {
-    const data = createMCData([makeQuestion('Main Idea', 'A')]);
+    const data = createMCData([makeQuestion('Literal Comprehension', 'A')]);
     const { issues } = validateMC(data);
     expect(issues.some(i => i.message.includes('Expected 10'))).toBe(true);
   });
 
   it('strips option prefixes', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
-      makeQuestion(i < 2 ? 'Finding Evidence' : 'Main Idea', 'Second', ['A. First', 'B. Second', 'C. Third', 'D. Fourth'])
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Second', ['A. First', 'B. Second', 'C. Third', 'D. Fourth'])
     );
     const { fixedData, issues } = validateMC(createMCData(questions));
     expect(fixedData.multipleChoice[0].options[0]).toBe('First');
@@ -42,12 +44,13 @@ describe('validateMC', () => {
     expect(issues.filter(i => i.severity === 'error').length).toBe(0);
   });
 
-  it('converts answer text to letter', () => {
+  it('converts legacy option-text answers to letters with warning', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
-      makeQuestion(i < 2 ? 'Finding Evidence' : 'Main Idea', 'Gamma', ['Alpha', 'Beta', 'Gamma', 'Delta'])
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Gamma', ['Alpha', 'Beta', 'Gamma', 'Delta'])
     );
-    const { fixedData } = validateMC(createMCData(questions));
+    const { fixedData, issues } = validateMC(createMCData(questions));
     expect(fixedData.multipleChoice[0].answer).toBe('C');
+    expect(issues.some(i => i.message.includes('auto-converted to letter'))).toBe(true);
   });
 
   it('auto-fixes uneven answer distribution by rotating options', () => {
@@ -59,7 +62,7 @@ describe('validateMC', () => {
       'Small brains', 'Social hierarchies'
     ];
     const questions = answers.map((ans, i) =>
-      makeQuestion(i < 2 ? 'Finding Evidence' : 'Main Idea', ans, opts)
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', ans, opts)
     );
     const { issues, fixedData } = validateMC(createMCData(questions));
     expect(issues.some(i => i.message.includes('distribution uneven'))).toBe(false);
@@ -76,7 +79,7 @@ describe('validateMC', () => {
     const opts = ['OptA', 'OptB', 'OptC', 'OptD'];
     const answers = ['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'D', 'D'];
     const questions = answers.map((ans, i) =>
-      makeQuestion(i < 2 ? 'Finding Evidence' : 'Main Idea', ans, opts)
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', ans, opts)
     );
     const { fixedData } = validateMC(createMCData(questions));
     const dist = { A: 0, B: 0, C: 0, D: 0 };
@@ -89,15 +92,24 @@ describe('validateMC', () => {
 
   it('detects duplicate options', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
-      makeQuestion(i < 2 ? 'Finding Evidence' : 'Main Idea', 'Unique', ['Same', 'Same', 'Different', 'Unique'])
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Unique', ['Same', 'Same', 'Different', 'Unique'])
     );
     const { issues } = validateMC(createMCData(questions));
     expect(issues.some(i => i.message.includes('duplicate option'))).toBe(true);
   });
 
+  it('accepts letter-format answers cleanly without conversion warning', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'B', ['Alpha', 'Beta', 'Gamma', 'Delta'])
+    );
+    const { fixedData, issues } = validateMC(createMCData(questions));
+    expect(fixedData.multipleChoice[0].answer).toBe('B');
+    expect(issues.some(i => i.message.includes('auto-converted'))).toBe(false);
+  });
+
   it('warns when option lengths vary by more than 30%', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
-      makeQuestion(i < 2 ? 'Finding Evidence' : 'Main Idea', 'Short', [
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Short', [
         'Short',
         'A much longer option that is way more verbose',
         'Medium length option here',

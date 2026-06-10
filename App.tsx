@@ -157,6 +157,17 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [refinementSummary, setRefinementSummary] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
+  const [configEverSaved, setConfigEverSaved] = useState(false);
+
+  // Auto-open config on first visit if no API key
+  useEffect(() => {
+    const config = getActiveConfig();
+    if (!config || !config.apiKey) {
+      setShowConfig(true);
+    } else {
+      setConfigEverSaved(true);
+    }
+  }, []);
   const [viewMode, setViewMode] = useState<ViewMode>('editor');
 
   const [sectionOrder, setSectionOrder] = useState<string[]>(['summary', 'mc', 'syntaxDeconstruction', 'writing']);
@@ -189,14 +200,12 @@ export default function App() {
       updatedAt: Date.now(),
     };
 
-    // If this worksheet is new, add it
     if (!updatedProject.worksheets.find(w => w._meta?.generatedAt === data._meta?.generatedAt)) {
       updatedProject.worksheets.push(data);
     }
 
     saveProject(updatedProject).catch(console.error);
-    setCurrentProject(updatedProject);
-  }, [data]);
+  }, [data, currentProject]);
 
   // Cache compiled Tailwind CSS for self-contained HTML export (no CDN dependency)
   const exportTailwindCSS = useRef<string>('');
@@ -219,7 +228,7 @@ export default function App() {
 
     const config = getActiveConfig();
     if (!config || !config.apiKey) {
-      setError('Please configure your API key in AI Configuration.');
+      setShowConfig(true);
       return;
     }
 
@@ -230,12 +239,13 @@ export default function App() {
     setValidationResult(null);
 
     try {
-      // Generate + auto-refine on warnings
-      const { data: rawData, rounds } = await generateAndRefine(
+      // Generate + auto-refine
+      const { data: rawData, rounds, reports } = await generateAndRefine(
         article,
         settings.difficulty,
-        (round, _data, issues) => {
-          setLoadingMessage(`Refining (round ${round}) — fixing ${issues.length} issue(s)...`);
+        (round, _data, report) => {
+          const total = report.fixedIssues.length + report.remainingIssues.length;
+          setLoadingMessage(`Refining (round ${round}) — fixed ${report.fixedIssues.length}, ${report.remainingIssues.length} remaining...`);
         },
       );
 
@@ -246,13 +256,22 @@ export default function App() {
       const finalData = validation.data;
       setData(finalData);
 
-      // Show refinement summary
-      if (rounds > 0 && warnings.length === 0 && errors.length === 0) {
-        setRefinementSummary(`Auto-refined in ${rounds} round(s) — worksheet is clean.`);
-      } else if (rounds > 0 && warnings.length > 0) {
-        setRefinementSummary(`Auto-refined in ${rounds} round(s) — ${warnings.length} minor issue(s) remain (see below).`);
-      } else if (rounds > 0 && errors.length > 0) {
-        setRefinementSummary(`Auto-refined in ${rounds} round(s) — ${errors.length} issue(s) still need attention.`);
+      // Show refinement summary from structured reports
+      if (rounds > 0) {
+        const totalFixed = reports.reduce((sum, r) => sum + r.fixedIssues.length, 0);
+        const lastReport = reports[reports.length - 1];
+        const remaining = lastReport?.remainingIssues.length ?? 0;
+        const introduced = lastReport?.introducedIssues.length ?? 0;
+
+        if (lastReport?.checklistPassed && remaining === 0) {
+          setRefinementSummary(`Auto-refined in ${rounds} round(s) — all ${totalFixed} issue(s) fixed. Worksheet is clean.`);
+        } else if (remaining > 0 && introduced === 0) {
+          setRefinementSummary(`Auto-refined in ${rounds} round(s) — fixed ${totalFixed}, ${remaining} minor issue(s) remain (see below).`);
+        } else if (introduced > 0) {
+          setRefinementSummary(`Auto-refined in ${rounds} round(s) — fixed ${totalFixed}, but ${introduced} new issue(s) introduced.`);
+        } else {
+          setRefinementSummary(`Auto-refined in ${rounds} round(s) — ${totalFixed} issue(s) addressed.`);
+        }
       }
 
       // Show validation panel only for hard errors
@@ -287,8 +306,8 @@ export default function App() {
       const { data: rawData } = await generateAndRefine(
         article,
         settings.difficulty,
-        (round, _data, issues) => {
-          setLoadingMessage(`Refining (round ${round}) — fixing ${issues.length} issue(s)...`);
+        (round, _data, report) => {
+          setLoadingMessage(`Refining (round ${round}) — ${report.fixedIssues.length} fixed, ${report.remainingIssues.length} remaining...`);
         },
       );
       const validation = validateWorksheet(rawData, article);
@@ -496,7 +515,7 @@ export default function App() {
               <button onClick={() => setShowConfig(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
             </div>
             <div className="p-3">
-              <ConfigPanel embedded />
+              <ConfigPanel embedded onSaved={() => { setShowConfig(false); setConfigEverSaved(true); }} />
             </div>
           </div>
         </div>

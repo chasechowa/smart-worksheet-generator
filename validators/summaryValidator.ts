@@ -1,4 +1,5 @@
 import type { WorksheetData, ValidationIssue } from '../types';
+import { findVerbatimMatch, describeMatch, type VerbatimResult } from './verbatimMatcher';
 
 export function validateSummary(data: WorksheetData, articleText: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -49,17 +50,54 @@ export function validateSummary(data: WorksheetData, articleText: string): Valid
 
     // Use potentially truncated value
     const currentBlank = data.summary!.blanks![i];
-    const articleLower = articleText.toLowerCase();
-    const blankLower = currentBlank.toLowerCase().replace(/[^\w\s]/g, '');
-    if (blankLower && !articleLower.includes(blankLower)) {
-      // Still emit as warning (can't auto-fix content)
-      issues.push({
-        type: 'rule',
-        section: 'summary',
-        severity: 'warning',
-        message: `Blank ${i + 1} answer "${blank}" not found in original article`,
-        suggestion: 'Answer should be extractable from the article text',
-      });
+    if (!currentBlank || currentBlank.trim().length === 0) return;
+
+    // ---- Verbatim verification (tiered) ----
+    const result = findVerbatimMatch(currentBlank, articleText);
+
+    switch (result.status) {
+      case 'exact':
+        // Clean — no issue. If boundaries not preserved, note but don't warn.
+        if (!result.boundaryPreserved) {
+          issues.push({
+            type: 'rule',
+            section: 'summary',
+            severity: 'warning',
+            message: `Blank ${i + 1} "${currentBlank}" found as substring but embedded in longer text: "${result.matchedText}"`,
+            suggestion: `Consider using the exact phrase: "${result.matchedText}" from article context`,
+          });
+        }
+        break;
+
+      case 'partial':
+        issues.push({
+          type: 'rule',
+          section: 'summary',
+          severity: 'warning',
+          message: `Blank ${i + 1} "${currentBlank}": all words found individually but NOT as a contiguous phrase (${describeMatch(result)})`,
+          suggestion: 'Answer words should appear together as an exact phrase in the article',
+        });
+        break;
+
+      case 'fuzzy':
+        issues.push({
+          type: 'rule',
+          section: 'summary',
+          severity: 'warning',
+          message: `Blank ${i + 1} "${currentBlank}": only some words found in article (${describeMatch(result)})`,
+          suggestion: 'Answer should be extractable from the article text verbatim',
+        });
+        break;
+
+      case 'missing':
+        issues.push({
+          type: 'rule',
+          section: 'summary',
+          severity: 'warning',
+          message: `Blank ${i + 1} "${currentBlank}" not found in original article (${describeMatch(result)})`,
+          suggestion: 'Answer should be extractable from the article text',
+        });
+        break;
     }
   });
 
