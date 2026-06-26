@@ -121,6 +121,163 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1500): Pr
   }
 }
 
+// ---------------------------------------------------------------------------
+// Level-specific few-shot MCQ examples
+// ---------------------------------------------------------------------------
+
+function buildMCExamples(difficulty: Difficulty): string {
+  const profile = getDifficultyProfile(difficulty);
+  const isC1 = difficulty === 'C1';
+  const isB2 = difficulty === 'B2';
+
+  if (isC1) {
+    return `
+┌─ C1 EXAMPLE 1: Multi-step Inference (3-5 reasoning hops) ───────────┐
+│ Passage: "The researcher's longitudinal study found that employees  │
+│ who received autonomy over their schedules reported 34% higher job  │
+│ satisfaction. However, productivity metrics showed no corresponding  │
+│ increase. Critics noted that self-reported satisfaction often       │
+│ correlates poorly with objective performance measures in workplace  │
+│ studies — a phenomenon known as the 'satisfaction-productivity      │
+│ paradox' first documented by Herzberg (1968)."                      │
+│                                                                     │
+│ Q: The passage most strongly implies which of the following about   │
+│    the relationship between autonomy and productivity?              │
+│                                                                     │
+│ A) Increased autonomy inevitably leads to higher productivity       │
+│    → "Reversed Logic" — passage explicitly shows no increase        │
+│ B) The satisfaction-productivity paradox calls into question        │
+│    whether autonomy alone improves workplace outcomes               │
+│    → CORRECT — synthesis of: higher satisfaction + flat             │
+│      productivity + paradox concept → autonomy benefits are         │
+│      limited to subjective measures, not objective ones             │
+│ C) Herzberg's research has been conclusively disproven              │
+│    → "Too Broad" — passage cites Herzberg but doesn't refute him    │
+│ D) Self-reported satisfaction is an unreliable metric               │
+│    → "Partially True" — passage says it "correlates poorly" with    │
+│      productivity but doesn't claim it's unreliable overall         │
+│                                                                     │
+│ ✦ 4 inference hops: autonomy↑ → satisfaction↑ + productivity flat  │
+│   → paradox concept → subjective ≠ objective → B is correct ✦      │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─ C1 EXAMPLE 2: Counterfactual Reasoning ────────────────────────────┐
+│ Passage: "The treaty's most consequential provision was not the     │
+│ tariff reduction clause — which had been anticipated — but rather   │
+│ the unexpected inclusion of binding environmental standards. Had    │
+│ these standards not been incorporated, subsequent cross-border      │
+│ pollution agreements would likely have taken decades to negotiate   │
+│ independently, according to diplomatic historians."                 │
+│                                                                     │
+│ Q: The passage suggests that without the environmental standards    │
+│    provision, which outcome would have been MOST likely?            │
+│                                                                     │
+│ A) The treaty would have failed to pass entirely                    │
+│    → "Unsupported Inference" — passage implies delay, not failure   │
+│ B) Tariff reductions would have been less effective                 │
+│    → "Wrong Scope" — tariffs and environment are separate provisions│
+│ C) Cross-border pollution agreements would have faced prolonged     │
+│    negotiation timelines                                             │
+│    → CORRECT — counterfactual: "Had these standards not been        │
+│      incorporated... would likely have taken decades"               │
+│ D) Diplomatic historians would have opposed the treaty              │
+│    → "Unsupported Inference" — historians analyzed, didn't oppose   │
+│                                                                     │
+│ ✦ Counterfactual reasoning: "had X not happened → Y would occur"   │
+│   is the CORE of this question type ✦                              │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─ C1 EXAMPLE 3: Academic Vocabulary Depth ───────────────────────────┐
+│ Passage: "The author's proclivity for obfuscation, while initially  │
+│ appearing as mere stylistic indulgence, serves a calculated         │
+│ rhetorical function: by compelling readers to parse each sentence   │
+│ with unusual care, she enlists them as active participants rather   │
+│ than passive consumers of her argument."                            │
+│                                                                     │
+│ Q: In context, 'proclivity' most nearly means:                      │
+│                                                                     │
+│ A) propensity    → CORRECT — "tendency or inclination"              │
+│ B) antipathy     → "Reversed Logic" — opposite meaning              │
+│ C) adumbration   → "Partially True" — related to 'obscuring' but    │
+│    refers to foreshadowing, not habitual tendency                   │
+│ D) perspicuity   → "Reversed Logic" — means clarity, opposite of    │
+│    obfuscation                                                      │
+│                                                                     │
+│ ✦ ALL options are C1/C2 academic vocabulary. No simple synonyms ✦  │
+└─────────────────────────────────────────────────────────────────────┘
+`;
+  }
+
+  if (isB2) {
+    return `
+┌─ B2 EXAMPLE 1: Multi-paragraph Inference ───────────────────────────┐
+│ Passage: "Urban planners initially championed mixed-use zoning as a │
+│ cure for suburban sprawl. Two decades of data, however, reveal a    │
+│ more nuanced picture: while pedestrian traffic increased 28% in     │
+│ mixed-use districts, vehicle miles traveled remained statistically  │
+│ unchanged. Residents were walking more but driving just as much."   │
+│                                                                     │
+│ Q: What can be inferred about mixed-use zoning based on the data?   │
+│                                                                     │
+│ A) It successfully reduced suburban sprawl                          │
+│    → "Reversed Logic" — paragraph says driving unchanged            │
+│ B) It improved some outcomes but failed to address car dependency   │
+│    → CORRECT — walking↑ + driving flat → partial success            │
+│ C) Pedestrian traffic increases are not meaningful metrics          │
+│    → "Unsupported Inference" — passage doesn't evaluate metrics     │
+│ D) Vehicle miles traveled would have increased without the policy   │
+│    → "Unsupported Inference" — no counterfactual data provided      │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─ B2 EXAMPLE 2: Evidence Pair (Linked) ──────────────────────────────┐
+│ Q4 (Evidence Reasoning): "The data suggests which conclusion about  │
+│ mixed-use zoning?" (answer: B — partial success, car use unchanged) │
+│ evidencePairLink: { claimQuestionId: "q4", evidenceQuestionId: "q5" }│
+│                                                                     │
+│ Q5 (Evidence Reasoning): "Which evidence best supports Q4?"        │
+│ A) 'pedestrian traffic increased 28%' → incomplete, only half       │
+│ B) 'vehicle miles traveled remained statistically unchanged'        │
+│    → CORRECT — directly proves the "car use unchanged" half         │
+│ C) 'mixed-use zoning was championed' → states opinion, not data     │
+│ D) 'two decades of data reveal' → meta-commentary, not evidence     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─ B2 EXAMPLE 3: Rhetorical Function ─────────────────────────────────┐
+│ "The author references 'two decades of data' primarily to:"        │
+│ A) emphasize the thoroughness of the research → CORRECT             │
+│ B) question the methodology → "Reversed Logic" — author relies on it│
+│ C) contrast with a competing study → "Wrong Scope" — no comparison  │
+│ D) introduce a new topic → "Reversed Logic" — continuation, not new │
+└─────────────────────────────────────────────────────────────────────┘
+`;
+  }
+
+  // A2 / B1 — simpler examples
+  return `
+┌─ EXAMPLE 1: Literal Comprehension ──────────────────────────────────┐
+│ Passage: "The Greenland ice sheet lost 267 billion metric tons      │
+│ of ice per year between 2006 and 2015."                             │
+│                                                                     │
+│ Q: According to the passage, what happened to the ice sheet?       │
+│ A) It completely melted → "Reversed Logic"                          │
+│ B) It lost approximately 267 billion tons annually → CORRECT        │
+│ C) It remained stable → "Reversed Logic"                            │
+│ D) It gained ice → "Reversed Logic"                                 │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─ EXAMPLE 2: Basic Inference ────────────────────────────────────────┐
+│ Passage: "Rainfall in the region dropped 40% below average. Crop   │
+│ yields declined sharply, and several farms closed."                 │
+│ Q: What can be inferred? → drought affected agriculture → CORRECT   │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─ EXAMPLE 3: Main Idea ──────────────────────────────────────────────┐
+│ "The passage is mainly about:" → CORRECT uses DIFFERENT wording    │
+│ than any single sentence, synthesizing the overall topic.          │
+└─────────────────────────────────────────────────────────────────────┘
+`;
+}
+
 function buildPrompt(article: string, difficulty: Difficulty): string {
   const profile = getDifficultyProfile(difficulty);
 
@@ -190,76 +347,17 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     ╔══════════════════════════════════════════════════════════════╗
     ║  FEW-SHOT EXAMPLES — Match this quality exactly            ║
     ╚══════════════════════════════════════════════════════════════╝
+    ${buildMCExamples(difficulty)}
 
-    ┌─ EXAMPLE 1: Literal Comprehension (cognitiveLevel: retrieval) ─┐
-    │ Passage: "The Greenland ice sheet lost 267 billion metric     │
-    │ tons of ice per year between 2006 and 2015, according to      │
-    │ satellite measurements published in Nature."                  │
-    │                                                                │
-    │ Q: According to the passage, what do satellite measurements   │
-    │    indicate about the Greenland ice sheet?                     │
-    │                                                                │
-    │ A) It has completely melted since 2006                        │
-    │    → "Reversed Logic" — contradicts "lost...per year"         │
-    │ B) It lost approximately 267 billion metric tons annually     │
-    │    → CORRECT — paraphrase of "267 billion...per year"         │
-    │ C) It remained stable between 2006 and 2015                   │
-    │    → "Reversed Logic" — contradicts the reported loss         │
-    │ D) It gained ice during the study period                      │
-    │    → "Reversed Logic" — opposite of "lost"                    │
-    │                                                                │
-    │ ✦ CORRECT ANSWER IS A PARAPHRASE, NOT VERBATIM REPETITION ✦  │
-    └────────────────────────────────────────────────────────────────┘
-
-    ┌─ EXAMPLE 2: Inference (cognitiveLevel: inference) ────────────┐
-    │ Passage: "Despite tripling the education budget over the      │
-    │ past decade, standardized test scores in the district have    │
-    │ remained flat. Meanwhile, neighboring districts with stable   │
-    │ budgets saw comparable score trajectories."                   │
-    │                                                                │
-    │ Q: What can be reasonably inferred from the passage?          │
-    │                                                                │
-    │ A) Increased funding inevitably improves educational outcomes │
-    │    → "Reversed Logic" — passage shows funding did NOT improve │
-    │ B) The district's test scores declined over the decade        │
-    │    → "Reversed Logic" — passage says scores "remained flat"   │
-    │ C) Factors beyond funding levels likely influence test scores │
-    │    → CORRECT — implied by flat scores despite tripled budget  │
-    │ D) Neighboring districts performed significantly better       │
-    │    → "Too Broad" — "comparable" ≠ "significantly better"      │
-    │                                                                │
-    │ ✦ 2 inference steps: flat scores + tripled budget → funding   │
-    │   alone insufficient → other factors at play ✦                │
-    └────────────────────────────────────────────────────────────────┘
-
-    ┌─ EXAMPLE 3: Evidence Reasoning Pair (cognitiveLevel: inference)┐
-    │ Q4 (Evidence Reasoning):                                       │
-    │ "The passage suggests which of the following about renewable   │
-    │  energy adoption in developing nations?"                       │
-    │ A) It is primarily driven by environmental concerns            │
-    │ B) Economic factors play a larger role than environmental ones │
-    │ C) It has been uniformly successful across regions             │
-    │ D) International pressure is the main catalyst                 │
-    │ answer: B, cognitiveLevel: inference                          │
-    │ evidencePairLink: { claimQuestionId: "q4", evidenceQuestionId: "q5" } │
-    │                                                                │
-    │ Q5 (Evidence Reasoning):                                       │
-    │ "Which quotation provides the best evidence for Q4?"          │
-    │ A) 'Solar installations increased by 40%'                     │
-    │    → States a fact but does not explain WHY adoption occurred │
-    │ B) 'Environmental activists praised the initiative'            │
-    │    → Mentions environment but doesn't address economic drivers │
-    │ C) 'The primary motivation cited by policymakers was cost     │
-    │    reduction rather than climate goals'                       │
-    │    → CORRECT — directly supports "economic > environmental"   │
-    │ D) 'Developing nations account for 60% of new capacity'        │
-    │    → States a statistic without explaining causation          │
-    │ evidencePairLink: { claimQuestionId: "q4", evidenceQuestionId: "q5" } │
-    │                                                                │
-    │ ✦ Evidence pair rule: qB must DIRECTLY support qA's answer.   │
-    │   Options that are "in the same paragraph" but don't actually  │
-    │   prove the claim are WRONG. ✦                                │
-    └────────────────────────────────────────────────────────────────┘
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  DIFFICULTY GRADIENT — ${profile.label}                  ║
+    ╚══════════════════════════════════════════════════════════════╝
+    - Inference steps: ${profile.mcQuestions.inferenceSteps[0]}–${profile.mcQuestions.inferenceSteps[1]} per question
+    - Distractor quality: ${profile.mcQuestions.distractorPlausibility}
+    - Paraphrase: ${profile.mcQuestions.paraphraseStrict ? 'STRICT — correct answer must NEVER reuse passage wording verbatim' : profile.mcQuestions.paraphraseRequired ? 'Required — correct answer uses different wording than passage' : 'May use similar wording'}
+    ${profile.mcQuestions.counterfactualRequired ? '- COUNTERFACTUAL REQUIRED: At least 1 question must use "If X had not happened, then Y..." reasoning' : ''}
+    ${profile.mcQuestions.vocabLevel ? `- Vocabulary target: ${profile.mcQuestions.vocabLevel}` : ''}
+    ${profile.mcQuestions.minInferenceSteps ? `- Each Inference question: minimum ${profile.mcQuestions.minInferenceSteps} reasoning steps` : ''}
 
     ╔══════════════════════════════════════════════════════════════╗
     ║  QUESTION REQUIREMENTS                                      ║
@@ -632,7 +730,7 @@ async function callAI(prompt: string, aiConfig: AIConfig): Promise<WorksheetData
 
 // ==================== Refinement (self-correction) ====================
 
-const MAX_REFINEMENT_ROUNDS = 2;
+const MAX_REFINEMENT_ROUNDS = 0; // No API refinement — rely on prompt quality + mechanical auto-fixes
 
 // ---------------------------------------------------------------------------
 // Issue classification

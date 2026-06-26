@@ -338,17 +338,20 @@ const PROFILES: DifficultyProfiles = {
       maxRetrievalQuestions: 1,
       minInferenceQuestions: 4,
       minSynthesisQuestions: 5,
+      minInferenceSteps: 3,
+      counterfactualRequired: true,
+      vocabLevel: 'C1-C2 academic',
+      paraphraseStrict: true,
       guidance:
-        'Questions test ADVANCED INFERENTIAL and EVALUATIVE comprehension — answers require subtle reasoning, ' +
-        'cross-paragraph synthesis, recognition of implicit assumptions, and evaluation of argument strength. ' +
-        'Distractors must be SUBTLY wrong — incorrect in a single detail, or plausible but requiring a higher level of precision. ' +
-        'Distractors should exploit nuanced misinterpretations that advanced learners commonly make. ' +
-        'Nearly all questions require 2–5 inference steps. ' +
-        '"EXCEPT" and "NOT" questions up to 2 are fine. ' +
-        'Question stems should use complex academic phrasing. ' +
-        'Main Idea questions should require recognizing the thesis vs. supporting arguments. ' +
-        'Function/Tone questions should analyze rhetorical strategies (concession, qualification, irony). ' +
-        'Finding Evidence should require distinguishing between direct support and tangential references.',
+        'C1 ADVANCED LEVEL — questions must feel like IELTS 8.0+ / TOEFL 28+ / SAT 700+ difficulty. ' +
+        'Distractors must be INDISTINGUISHABLE from correct answer on first read — only close re-reading reveals the flaw. ' +
+        'Every Inference question requires 3–5 reasoning steps across paragraphs. ' +
+        'Vocabulary options: ALL 4 must be C1/C2 academic words (e.g., "recrudescence" not "return"). ' +
+        'Correct answers NEVER reuse passage wording — strict paraphrase gate enforced. ' +
+        'At least 1 question requires COUNTERFACTUAL reasoning. ' +
+        'Structure/Function must analyze rhetorical STRATEGY, not just purpose. ' +
+        'Evidence pairs: evidence must DIRECTLY prove the claim, not just be topic-adjacent. ' +
+        'Question stems use complex academic phrasing with embedded clauses.',
     },
 
     syntax: {

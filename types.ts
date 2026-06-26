@@ -58,6 +58,14 @@ export interface MCQuestionProfile {
   minInferenceQuestions: number;
   /** Min synthesis/transfer questions */
   minSynthesisQuestions: number;
+  /** Min inference steps for C1+ (forces multi-hop reasoning) */
+  minInferenceSteps?: number;
+  /** Whether counterfactual reasoning is required */
+  counterfactualRequired?: boolean;
+  /** Target vocabulary level for Vocab-in-Context */
+  vocabLevel?: string;
+  /** Whether strict paraphrase gate applies (correct answer MUST differ from passage) */
+  paraphraseStrict?: boolean;
   /** Human-readable guidance for distractor design */
   guidance: string;
 }
