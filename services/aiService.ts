@@ -155,98 +155,163 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     - Verify: open the article, search for each blank answer. It must be there word-for-word.
     - Do NOT use synonyms, derived forms, or paraphrased phrases.
 
-    Part 2 (Reading Logic — IELTS/TOEFL/SAT Quality): Exactly 10 Multiple Choice questions.
-    - ${profile.mcQuestions.guidance}
-    - PRIMARY GOAL: Assess comprehension, inference, reasoning, synthesis, and rhetorical analysis.
-      Do NOT merely test information retrieval.
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    Part 2 — MULTIPLE CHOICE READING COMPREHENSION
+    Target: IELTS 7.0+ / TOEFL 25+ / SAT Evidence-Based Reading
+    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  CORE EXAM MECHANISMS — These define HOW questions work    ║
+    ╚══════════════════════════════════════════════════════════════╝
+
+    M1 — EVIDENCE-BASED (SAT/IELTS/TOEFL common core)
+    Every correct answer must be directly supported by specific text.
+    The correct answer is the one option that CANNOT be eliminated by the passage.
+    Wrong answers are eliminated by: contradiction, not stated, or misapplied.
+
+    M2 — PARAPHRASE GATE (IELTS/TOEFL critical)
+    The CORRECT answer MUST use different wording than the passage.
+    If an option repeats passage wording verbatim, it is likely a TRAP.
+    Only Vocabulary in Context and Evidence quotes are exempt.
+
+    M3 — SOPHISTICATED DISTRACTORS (SAT gold standard)
+    Every wrong option must reflect a SPECIFIC misreading pattern:
+    • "True but not answering THIS question" (confuses related ideas)
+    • "True for wrong part of passage" (paragraph scope error)
+    • "Reasonable inference from insufficient evidence" (over-reaching)
+    • "Opposite or reversed relationship" (cause↔effect swap)
+    • "Stronger/weaker claim than passage supports" (intensity error)
+    • "Real-world true but passage false" (outside knowledge trap)
+
+    M4 — RHETORICAL AWARENESS (TOEFL/SAT emphasis)
+    Questions must assess understanding of WHY the author writes,
+    not just WHAT the author writes. Ask about purpose, function, strategy.
+
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  FEW-SHOT EXAMPLES — Match this quality exactly            ║
+    ╚══════════════════════════════════════════════════════════════╝
+
+    ┌─ EXAMPLE 1: Literal Comprehension (cognitiveLevel: retrieval) ─┐
+    │ Passage: "The Greenland ice sheet lost 267 billion metric     │
+    │ tons of ice per year between 2006 and 2015, according to      │
+    │ satellite measurements published in Nature."                  │
+    │                                                                │
+    │ Q: According to the passage, what do satellite measurements   │
+    │    indicate about the Greenland ice sheet?                     │
+    │                                                                │
+    │ A) It has completely melted since 2006                        │
+    │    → "Reversed Logic" — contradicts "lost...per year"         │
+    │ B) It lost approximately 267 billion metric tons annually     │
+    │    → CORRECT — paraphrase of "267 billion...per year"         │
+    │ C) It remained stable between 2006 and 2015                   │
+    │    → "Reversed Logic" — contradicts the reported loss         │
+    │ D) It gained ice during the study period                      │
+    │    → "Reversed Logic" — opposite of "lost"                    │
+    │                                                                │
+    │ ✦ CORRECT ANSWER IS A PARAPHRASE, NOT VERBATIM REPETITION ✦  │
+    └────────────────────────────────────────────────────────────────┘
+
+    ┌─ EXAMPLE 2: Inference (cognitiveLevel: inference) ────────────┐
+    │ Passage: "Despite tripling the education budget over the      │
+    │ past decade, standardized test scores in the district have    │
+    │ remained flat. Meanwhile, neighboring districts with stable   │
+    │ budgets saw comparable score trajectories."                   │
+    │                                                                │
+    │ Q: What can be reasonably inferred from the passage?          │
+    │                                                                │
+    │ A) Increased funding inevitably improves educational outcomes │
+    │    → "Reversed Logic" — passage shows funding did NOT improve │
+    │ B) The district's test scores declined over the decade        │
+    │    → "Reversed Logic" — passage says scores "remained flat"   │
+    │ C) Factors beyond funding levels likely influence test scores │
+    │    → CORRECT — implied by flat scores despite tripled budget  │
+    │ D) Neighboring districts performed significantly better       │
+    │    → "Too Broad" — "comparable" ≠ "significantly better"      │
+    │                                                                │
+    │ ✦ 2 inference steps: flat scores + tripled budget → funding   │
+    │   alone insufficient → other factors at play ✦                │
+    └────────────────────────────────────────────────────────────────┘
+
+    ┌─ EXAMPLE 3: Evidence Reasoning Pair (cognitiveLevel: inference)┐
+    │ Q4 (Evidence Reasoning):                                       │
+    │ "The passage suggests which of the following about renewable   │
+    │  energy adoption in developing nations?"                       │
+    │ A) It is primarily driven by environmental concerns            │
+    │ B) Economic factors play a larger role than environmental ones │
+    │ C) It has been uniformly successful across regions             │
+    │ D) International pressure is the main catalyst                 │
+    │ answer: B, cognitiveLevel: inference                          │
+    │ evidencePairLink: { claimQuestionId: "q4", evidenceQuestionId: "q5" } │
+    │                                                                │
+    │ Q5 (Evidence Reasoning):                                       │
+    │ "Which quotation provides the best evidence for Q4?"          │
+    │ A) 'Solar installations increased by 40%'                     │
+    │    → States a fact but does not explain WHY adoption occurred │
+    │ B) 'Environmental activists praised the initiative'            │
+    │    → Mentions environment but doesn't address economic drivers │
+    │ C) 'The primary motivation cited by policymakers was cost     │
+    │    reduction rather than climate goals'                       │
+    │    → CORRECT — directly supports "economic > environmental"   │
+    │ D) 'Developing nations account for 60% of new capacity'        │
+    │    → States a statistic without explaining causation          │
+    │ evidencePairLink: { claimQuestionId: "q4", evidenceQuestionId: "q5" } │
+    │                                                                │
+    │ ✦ Evidence pair rule: qB must DIRECTLY support qA's answer.   │
+    │   Options that are "in the same paragraph" but don't actually  │
+    │   prove the claim are WRONG. ✦                                │
+    └────────────────────────────────────────────────────────────────┘
+
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  QUESTION REQUIREMENTS                                      ║
+    ╚══════════════════════════════════════════════════════════════╝
+
+    TYPE DISTRIBUTION (EXACT):
+    ┌──────────────────────────────┬────────┬──────────────────────────┐
+    │ Type                         │ Count  │ Core Exam Skill           │
+    ├──────────────────────────────┼────────┼──────────────────────────┤
+    │ Main Idea                    │   1    │ Central claim recognition │
+    │ Literal Comprehension        │   2    │ Stated fact location     │
+    │ Inference                    │   3    │ Implicit meaning (IELTS/TOEFL/SAT core) │
+    │ Evidence Reasoning           │   2    │ Evidence evaluation (SAT core) │
+    │ Vocabulary in Context        │   1    │ Contextual meaning (all 3) │
+    │ Structure/Function/Synthesis │   1    │ Rhetorical analysis (TOEFL/SAT) │
+    └──────────────────────────────┴────────┴──────────────────────────┘
+
+    CRITICAL RULES (apply to EVERY question):
+    1. PARAPHRASE: Correct answer rewrites the passage, never copies verbatim
+       (exception: Vocab-in-Context options, Evidence quotes)
+    2. DISTRACTORS: Every wrong option must feel PLAUSIBLE to a careful reader.
+       Each reflects a specific misreading — never random or absurd.
+    3. ELIMINATION: Design so that 3 options can be eliminated by text evidence.
+       If you can't eliminate an option with specific text → it might be correct.
+    4. DEPTH: Inference questions require ≥2 steps from text to answer.
+       Single-step lookups are Literal Comprehension, not Inference.
+    5. EVIDENCE PAIR: The evidence question's correct quote must DIRECTLY
+       prove the claim question's answer, not just be on the same topic.
+
+    ${profile.mcQuestions.guidance}
+
+    DISTRACTOR TAGGING:
+    ┌──────────────────────────┬────────────────────────────────────────────┐
+    │ Pattern                  │ When to use                                 │
+    ├──────────────────────────┼────────────────────────────────────────────┤
+    │ "Too Broad"              │ Statement overstates/extrapolates passage  │
+    │ "Too Narrow"             │ True detail presented as the main point    │
+    │ "Partially True"         │ Mixes correct + incorrect elements         │
+    │ "Wrong Scope"            │ Right topic but wrong paragraph/context    │
+    │ "Unsupported Inference"  │ Plausible but lacks textual evidence       │
+    │ "Reversed Logic"         │ Flips cause↔effect, before↔after, etc.    │
+    └──────────────────────────┴────────────────────────────────────────────┘
 
     COGNITIVE TARGETS (${profile.label}):
-    - Retrieval (direct sentence-level): ${Math.round(profile.mcQuestions.cognitiveRatios.retrieval * 100)}%
-    - Inference (multi-sentence, implications): ${Math.round(profile.mcQuestions.cognitiveRatios.inference * 100)}%
-    - Synthesis (transfer, evaluation): ${Math.round(profile.mcQuestions.cognitiveRatios.synthesis * 100)}%
-    - Maximum ${profile.mcQuestions.maxRetrievalQuestions} questions may be answered by direct single-sentence retrieval.
-    - At least ${profile.mcQuestions.minInferenceQuestions} questions must require multi-sentence combination.
-    - At least ${profile.mcQuestions.minSynthesisQuestions} questions must require synthesis or evaluation.
+    - Retrieval: ${Math.round(profile.mcQuestions.cognitiveRatios.retrieval * 100)}% / Inference: ${Math.round(profile.mcQuestions.cognitiveRatios.inference * 100)}% / Synthesis: ${Math.round(profile.mcQuestions.cognitiveRatios.synthesis * 100)}%
+    - Max ${profile.mcQuestions.maxRetrievalQuestions} retrieval Qs / Min ${profile.mcQuestions.minInferenceQuestions} inference Qs / Min ${profile.mcQuestions.minSynthesisQuestions} synthesis Qs
 
-    TYPE DISTRIBUTION (EXACT — 10 total):
-    ┌──────────────────────────────┬────────┬──────────────────────────────────────────────┐
-    │ Type                         │ Count  │ Tests                                        │
-    ├──────────────────────────────┼────────┼──────────────────────────────────────────────┤
-    │ Main Idea                    │   1    │ Overall purpose, central claim, thesis        │
-    │ Literal Comprehension        │   2    │ Direct recall of stated facts                 │
-    │ Inference                    │   3    │ Combine info, unstated implications            │
-    │ Evidence Reasoning           │   2    │ Linked pair: claim + supporting evidence       │
-    │ Vocabulary in Context        │   1    │ Contextual meaning, NOT dictionary definition │
-    │ Structure/Function/Synthesis │   1    │ Author's purpose, paragraph role, idea transfer│
-    └──────────────────────────────┴────────┴──────────────────────────────────────────────┘
-
-    EVIDENCE REASONING — LINKED PAIR (CRITICAL):
-    Generate EXACTLY ONE evidence pair of 2 consecutive questions:
-    - Question A (id: "qN"): asks for a conclusion, claim, inference, or interpretation.
-    - Question B (id: "qN+1"): asks which quotation / sentence / evidence best supports the answer to Question A.
-    - Both questions must have "type": "Evidence Reasoning".
-    - Add an "evidencePairLink" field to each: { "claimQuestionId": "qN", "evidenceQuestionId": "qN+1" }.
-
-    INFERENCE QUESTION STANDARD:
-    A question is NOT inference if: the answer is explicitly stated in one sentence;
-    it can be found through keyword matching; the student only needs to locate a fact.
-    A valid inference question MUST require at least one of:
-    - combining information from multiple sentences;
-    - identifying an unstated implication;
-    - determining a likely consequence;
-    - connecting cause and effect across ideas.
-
-    TRANSFER QUESTION REQUIREMENT:
-    At least ONE question must be a TRANSFER question (cognitiveLevel: "synthesis").
-    A transfer question asks students to:
-    - apply a concept from the passage to a new situation;
-    - predict an outcome in a novel context;
-    - identify a parallel example;
-    - extend the author's reasoning beyond the text.
-    The correct answer MUST NOT appear directly in the passage.
-    Students must demonstrate conceptual understanding rather than retrieval.
-
-    EVIDENCE REASONING — LINKED PAIR (CRITICAL):
-    Generate EXACTLY ONE linked SAT-style evidence pair:
-    - Question A: asks for an inference, conclusion, interpretation, or claim.
-    - Question B: asks which quotation / sentence / evidence best supports the answer to Question A.
-    - Both questions must have "type": "Evidence Reasoning".
-    - Add "evidencePairLink" to each: { "claimQuestionId": "<qA_id>", "evidenceQuestionId": "<qB_id>" }.
-
-    STRUCTURE / FUNCTION QUESTIONS:
-    At least ONE question must ask students to analyze:
-    - the purpose of an example;
-    - the role of a paragraph;
-    - the function of a piece of evidence;
-    - how the author develops the argument.
-
-    VOCABULARY IN CONTEXT:
-    Do NOT test simple dictionary meanings. All four options must be PLAUSIBLE academic vocabulary choices.
-    Prefer options like: "indispensable / conventional / superficial / temporary"
-    Avoid simple synonym lists like: "basic / key / vital / deep"
-
-    DISTRACTOR PATTERNS (every incorrect option MUST be tagged):
-    ┌──────────────────────────┬──────────────────────────────────────────────────┐
-    │ Pattern                  │ Description                                       │
-    ├──────────────────────────┼──────────────────────────────────────────────────┤
-    │ "Too Broad"              │ True in general but overstates the passage        │
-    │ "Too Narrow"             │ True but only a minor detail, misses the point    │
-    │ "Partially True"         │ Some truth mixed with an incorrect element        │
-    │ "Wrong Scope"            │ Right topic, wrong paragraph or context           │
-    │ "Unsupported Inference"  │ Could be true but no passage evidence             │
-    │ "Reversed Logic"         │ Reverses cause/effect or flips the relationship   │
-    └──────────────────────────┴──────────────────────────────────────────────────┘
-
-    DISTRACTOR TEST — Before finalizing each question, ask:
-    "Could a student who partially understood the passage reasonably choose this option?"
-    If the answer is NO, rewrite the distractor.
-    Do NOT generate obviously incorrect distractors. Patterns must be distributed evenly.
-
-    - OPTION LENGTH: All 4 options within ~30% character count of each other.
-    - ANSWER DISTRIBUTION: Correct answers evenly distributed among A/B/C/D (2-3 each).
-    - Options: Raw text only, no "A.", "B)", "1." prefixes.
-    - Answer format: Single letter "A"/"B"/"C"/"D".
-    - Every question: non-empty "explanation" + "cognitiveLevel" ("retrieval"|"inference"|"synthesis").
+    MECHANICAL:
+    - Options raw text. No prefixes. Lengths within ~30%.
+    - Answer = single letter A/B/C/D.
+    - Correct answers: 2-3 per letter.
+    - Every question: explanation + cognitiveLevel + distractors.
 
     Part 3 (Syntax Deconstruction):
     - ${profile.syntax.guidance}
