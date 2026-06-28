@@ -47,6 +47,14 @@ const PrintableField: React.FC<{
   }, [value, viewMode]);
 
   if (viewMode !== 'editor') {
+    if (tagName === 'span') {
+      return (
+        <span className={`whitespace-pre-wrap break-words ${className}`}>
+          {value || placeholder}
+        </span>
+      );
+    }
+
     return (
       <div className={`whitespace-pre-wrap break-words ${className}`}>
         {value || placeholder}
@@ -109,6 +117,12 @@ const WorksheetPaper: React.FC<{
 
   const update = (key: keyof WorksheetData, val: any) => {
     if (onUpdate && viewMode === 'editor') onUpdate(key, val);
+  };
+
+  const header = data.header || { brand: 'OTIA', nameLabel: 'Name', scoreLabel: 'Score' };
+
+  const updateHeader = (patch: Partial<NonNullable<WorksheetData['header']>>) => {
+    update('header', { ...header, ...patch });
   };
 
   const renderSection = (sectionId: string) => {
@@ -543,6 +557,15 @@ const WorksheetPaper: React.FC<{
     <div className={`paper mx-auto bg-white p-8 md:p-12 shadow-sm ${viewMode === 'editor' ? 'min-h-[29.7cm]' : ''} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : 'max-w-[210mm]'}`}>
       {/* Header */}
       <div className="worksheet-header mb-8 border-b-2 border-gray-800 pb-5">
+          <div className="worksheet-brand">
+            <PrintableField
+                value={header.brand}
+                onChange={(e) => updateHeader({ brand: e.target.value })}
+                viewMode={viewMode}
+                tagName="div"
+                placeholder="OTIA"
+             />
+          </div>
           <h1 className="worksheet-title text-3xl font-black uppercase tracking-widest text-gray-900 mb-6 text-center">
             <PrintableField
                 value={data.title}
@@ -555,7 +578,15 @@ const WorksheetPaper: React.FC<{
 
           <div className="worksheet-meta grid grid-cols-3 gap-6 text-sm font-bold text-gray-600 uppercase tracking-wider items-end">
               <div className="worksheet-field flex items-end gap-2">
-                  <span className="shrink-0">Name:</span>
+                  <span className="shrink-0">
+                    <PrintableField
+                      value={header.nameLabel}
+                      onChange={(e) => updateHeader({ nameLabel: e.target.value })}
+                      viewMode={viewMode}
+                      tagName="span"
+                      placeholder="Name"
+                    />:
+                  </span>
                   <span className="worksheet-field-line block flex-1 border-b-2 border-gray-300 h-5">
                     {settings.teacherName ? (
                       <span className="normal-case tracking-normal text-gray-900">{settings.teacherName}</span>
@@ -566,7 +597,15 @@ const WorksheetPaper: React.FC<{
                   <span>Level: {settings.difficulty}</span>
               </div>
               <div className="worksheet-field flex items-end gap-2">
-                  <span className="shrink-0">Score:</span>
+                  <span className="shrink-0">
+                    <PrintableField
+                      value={header.scoreLabel}
+                      onChange={(e) => updateHeader({ scoreLabel: e.target.value })}
+                      viewMode={viewMode}
+                      tagName="span"
+                      placeholder="Score"
+                    />:
+                  </span>
                   <span className="worksheet-field-line block flex-1 border-b-2 border-gray-300 h-5"></span>
               </div>
           </div>

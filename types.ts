@@ -213,6 +213,11 @@ export interface ExpansionItem {
 export interface WorksheetData {
   title: string;
   articleSnippet: string;
+  header?: {
+    brand: string;
+    nameLabel: string;
+    scoreLabel: string;
+  };
   summary: {
     paragraph: string;
     blanks: string[];

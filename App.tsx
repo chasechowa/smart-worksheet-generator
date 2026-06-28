@@ -25,6 +25,11 @@ function normalizeWorksheetData(raw: Partial<WorksheetData> | null | undefined):
   return {
     title: data.title || 'Untitled Worksheet',
     articleSnippet: data.articleSnippet || '',
+    header: {
+      brand: data.header?.brand || 'OTIA',
+      nameLabel: data.header?.nameLabel || 'Name',
+      scoreLabel: data.header?.scoreLabel || 'Score',
+    },
     summary: {
       paragraph: normalizeSummaryParagraph(data.summary?.paragraph || ''),
       blanks: Array.isArray(data.summary?.blanks) ? data.summary.blanks : [],
@@ -142,19 +147,39 @@ const BASE_STYLES = `
 
   .worksheet-header {
     border-bottom: 2px solid #1f2937;
-    margin-bottom: 2rem;
-    padding-bottom: 1.25rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+  }
+  .worksheet-brand {
+    color: #111827;
+    font-size: 10pt !important;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    line-height: 1;
+    margin-bottom: 0.55rem;
+    text-transform: uppercase;
+  }
+  .worksheet-brand * {
+    font-size: inherit !important;
+    letter-spacing: inherit;
+    line-height: inherit;
   }
   .worksheet-title {
     color: #111827;
-    font-size: 24pt !important;
+    font-size: 18pt !important;
     font-weight: 900;
     letter-spacing: 0.08em;
     line-height: 1.15;
-    margin: 0 0 1.5rem 0 !important;
+    margin: 0 0 0.85rem 0 !important;
     overflow-wrap: anywhere;
     text-align: center;
     text-transform: uppercase;
+  }
+  .worksheet-title * {
+    font-size: inherit !important;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
   }
   .worksheet-meta {
     align-items: end;
@@ -173,12 +198,17 @@ const BASE_STYLES = `
     gap: 0.5rem;
     min-width: 0;
   }
+  .worksheet-field > span:first-child,
+  .worksheet-level,
+  .worksheet-level * {
+    font-size: inherit !important;
+  }
   .worksheet-field-line {
-    border-bottom: 2px solid #d1d5db;
-    display: block;
+    border-bottom: 1.5px solid #111827;
+    display: inline-block;
     flex: 1 1 auto;
-    height: 1.25rem;
-    min-width: 4rem;
+    height: 1rem;
+    min-width: 8rem;
   }
   .worksheet-level {
     text-align: center;
@@ -223,17 +253,17 @@ const BASE_STYLES = `
 
 const STD_STYLES = `
   :root { --line-height: 2rem; }
-  @page { margin: 1.5cm; size: A4; }
+  @page { margin: 8mm; size: A4; }
   .writing-line { border-bottom: 1px solid #000; height: var(--line-height); margin-bottom: 0.1rem; width: 100%; display: block; }
-  .paper { max-width: 210mm; padding: 10mm; }
+  .paper { max-width: 210mm; padding: 6mm 8mm 8mm; }
   .section-gap { margin-bottom: 1.5rem; }
 `;
 
 const COMPACT_STYLES = `
   :root { --line-height: 1.6rem; }
-  @page { margin: 1cm; size: A4; }
+  @page { margin: 8mm; size: A4; }
   .writing-line { border-bottom: 1px solid #000; height: var(--line-height); margin-bottom: 0px; width: 100%; display: block; }
-  .paper { max-width: 210mm; padding: 10mm; }
+  .paper { max-width: 210mm; padding: 6mm 8mm 8mm; }
   .section-gap { margin-bottom: 1rem; }
 
   @media print {
