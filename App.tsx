@@ -452,18 +452,17 @@ export default function App() {
     }
   };
 
-  // Shared input controls used in both centered and sidebar layouts
-  const renderInputCore = (isCompact: boolean) => (
-    <div className={`space-y-6 ${isCompact ? '' : 'w-full max-w-4xl mx-auto'}`}>
+  // Shared input controls used in both home and sidebar layouts
+  const renderInputCore = (isCompact: boolean, showProjects = true, showConfigButton = true) => (
+    <div className={`space-y-6 ${isCompact ? '' : 'w-full'}`}>
       {!isCompact && (
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 uppercase tracking-[0.15em] mb-3">
+        <div className="mb-6">
+          <h1 className="text-4xl xl:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-500 uppercase tracking-[0.12em] mb-3">
             Smart Worksheet
           </h1>
-          <div className="inline-flex items-center gap-3 mb-3">
-            <div className="h-px flex-1 w-8 bg-gradient-to-r from-transparent to-indigo-300"></div>
+          <div className="flex items-center gap-3 mb-3">
             <span className="text-xs font-bold tracking-[0.25em] text-indigo-400 uppercase bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">OTIA EXCLUSIVE</span>
-            <div className="h-px flex-1 w-8 bg-gradient-to-l from-transparent to-indigo-300"></div>
+            <div className="h-px flex-1 bg-gradient-to-r from-indigo-200 to-transparent"></div>
           </div>
           <p className="text-gray-400 text-sm font-medium">AI-Powered Reading Comprehension Worksheet Generator</p>
         </div>
@@ -474,7 +473,7 @@ export default function App() {
         <textarea
           value={article}
           onChange={e => setArticle(e.target.value)}
-          className={`w-full border border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-none transition-shadow bg-white/90 placeholder-gray-300 ${isCompact ? 'h-32' : 'h-64'}`}
+          className={`w-full border border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-none transition-shadow bg-white/90 placeholder-gray-300 ${isCompact ? 'h-32' : 'h-[360px] xl:h-[430px]'}`}
           placeholder="Paste article content here..."
         />
       </div>
@@ -507,13 +506,15 @@ export default function App() {
         )}
       </div>
 
-      <button
-        onClick={() => setShowConfig(true)}
-        className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 transition-all flex items-center justify-center gap-1.5"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-        AI Configuration
-      </button>
+      {showConfigButton && (
+        <button
+          onClick={() => setShowConfig(true)}
+          className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 transition-all flex items-center justify-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          AI Configuration
+        </button>
+      )}
 
       {showConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowConfig(false)}>
@@ -564,11 +565,13 @@ export default function App() {
         onForceUse={handleForceUse}
       />
 
-      <ProjectPanel
-        currentProject={currentProject}
-        onLoadProject={handleLoadProject}
-        onSaveCurrent={handleSaveCurrent}
-      />
+      {showProjects && (
+        <ProjectPanel
+          currentProject={currentProject}
+          onLoadProject={handleLoadProject}
+          onSaveCurrent={handleSaveCurrent}
+        />
+      )}
     </div>
   );
 
@@ -582,12 +585,43 @@ export default function App() {
       `}</style>
 
       {!data ? (
-        // === CENTERED INPUT LAYOUT (before generation) ===
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 no-print bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-          <div className="w-full max-w-3xl bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-indigo-500/5 border border-indigo-100/50 p-8">
-            {renderInputCore(false)}
+        // === WIDE WORKSPACE LAYOUT (before generation) ===
+        <div className="min-h-screen p-5 xl:p-8 no-print bg-gradient-to-br from-slate-50 via-white to-indigo-50">
+          <div className="mx-auto w-full max-w-[1500px]">
+            <div className="grid gap-5 xl:gap-6 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+              <section className="min-w-0 bg-white/85 backdrop-blur-sm rounded-2xl shadow-xl shadow-indigo-500/5 border border-indigo-100/50 p-6 xl:p-8">
+                {renderInputCore(false, false, false)}
+              </section>
+
+              <aside className="space-y-5">
+                <div className="bg-white/85 backdrop-blur-sm rounded-2xl shadow-lg shadow-indigo-500/5 border border-indigo-100/50 p-5">
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div>
+                      <label className="text-xs font-bold uppercase text-gray-400 block tracking-wide">Workspace</label>
+                      <p className="text-sm font-bold text-gray-700 mt-1">Online version</p>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-1">LIVE</span>
+                  </div>
+                  <button
+                    onClick={() => setShowConfig(true)}
+                    className="w-full py-2.5 rounded-xl font-bold text-xs text-gray-500 hover:text-indigo-600 bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-200 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    AI Configuration
+                  </button>
+                </div>
+
+                <div className="bg-white/85 backdrop-blur-sm rounded-2xl shadow-lg shadow-indigo-500/5 border border-indigo-100/50 p-5">
+                  <ProjectPanel
+                    currentProject={currentProject}
+                    onLoadProject={handleLoadProject}
+                    onSaveCurrent={handleSaveCurrent}
+                  />
+                </div>
+              </aside>
+            </div>
           </div>
-          <p className="mt-8 text-[11px] text-gray-300 font-medium tracking-wider uppercase">CHASECCC</p>
+          <p className="mt-6 text-center text-[11px] text-gray-300 font-medium tracking-wider uppercase">CHASECCC</p>
         </div>
       ) : (
         // === SPLIT SIDEBAR LAYOUT (after generation) ===
