@@ -13,6 +13,68 @@ import { ValidationPanel } from './components/ValidationPanel';
 
 type ViewMode = 'editor' | 'print-std' | 'print-compact' | 'interactive' | 'pdf';
 
+function normalizeWorksheetData(raw: Partial<WorksheetData> | null | undefined): WorksheetData {
+  const data = raw || {};
+  const keys = data.keys || {} as WorksheetData['keys'];
+  const writingWorkshop = data.writingWorkshop || {} as WorksheetData['writingWorkshop'];
+
+  return {
+    title: data.title || 'Untitled Worksheet',
+    articleSnippet: data.articleSnippet || '',
+    summary: {
+      paragraph: data.summary?.paragraph || '',
+      blanks: Array.isArray(data.summary?.blanks) ? data.summary.blanks : [],
+    },
+    multipleChoice: Array.isArray(data.multipleChoice)
+      ? data.multipleChoice.map((q, index) => ({
+          ...q,
+          id: q.id || `q${index + 1}`,
+          type: q.type || 'Literal Comprehension',
+          question: q.question || '',
+          options: Array.isArray(q.options) ? q.options : [],
+          answer: q.answer || '',
+          explanation: q.explanation || '',
+        }))
+      : [],
+    syntaxDeconstruction: Array.isArray(data.syntaxDeconstruction)
+      ? data.syntaxDeconstruction.map((item, index) => ({
+          ...item,
+          id: item.id || `s${index + 1}`,
+          original: item.original || '',
+          answer: item.answer || '',
+        }))
+      : [],
+    writingWorkshop: {
+      expansion: Array.isArray(writingWorkshop.expansion) ? writingWorkshop.expansion : [],
+      keywords: Array.isArray(writingWorkshop.keywords) ? writingWorkshop.keywords : [],
+      qaChain: Array.isArray(writingWorkshop.qaChain) ? writingWorkshop.qaChain : [],
+      criticalThinking: writingWorkshop.criticalThinking || '',
+    },
+    keys: {
+      summary: Array.isArray(keys.summary) ? keys.summary : [],
+      mc: keys.mc || {},
+      syntaxDeconstruction: Array.isArray(keys.syntaxDeconstruction) ? keys.syntaxDeconstruction : [],
+      expansion: Array.isArray(keys.expansion) ? keys.expansion : [],
+      qa: Array.isArray(keys.qa) ? keys.qa : [],
+      critical: keys.critical || '',
+    },
+    _meta: data._meta,
+  };
+}
+
+function normalizeProject(project: Project): Project {
+  const worksheets = Array.isArray(project.worksheets)
+    ? project.worksheets.map(worksheet => normalizeWorksheetData(worksheet))
+    : [];
+
+  return {
+    ...project,
+    articleText: project.articleText || '',
+    difficulty: project.difficulty || 'B2',
+    worksheets,
+  };
+}
+
 // --- Styles for Exported HTML ---
 const BASE_STYLES = `
   body {
@@ -329,11 +391,12 @@ export default function App() {
   };
 
   const handleLoadProject = (project: Project) => {
-    setCurrentProject(project);
-    setArticle(project.articleText);
-    setSettings(prev => ({ ...prev, difficulty: project.difficulty }));
-    if (project.worksheets.length > 0) {
-      const latest = project.worksheets[project.worksheets.length - 1];
+    const normalizedProject = normalizeProject(project);
+    setCurrentProject(normalizedProject);
+    setArticle(normalizedProject.articleText);
+    setSettings(prev => ({ ...prev, difficulty: normalizedProject.difficulty }));
+    if (normalizedProject.worksheets.length > 0) {
+      const latest = normalizedProject.worksheets[normalizedProject.worksheets.length - 1];
       setData(latest);
     } else {
       setData(null);
