@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { AIProvider } from '../types';
-import { PROVIDER_DEFAULTS } from '../types';
+import { PROVIDER_DEFAULTS, PROVIDER_MODELS } from '../types';
 import { getAllConfigs, getActiveProvider, setActiveProvider, saveProviderConfig, validateConfig } from '../services/configService';
 
 interface ConfigPanelProps {
@@ -40,7 +40,13 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) =
   const handleProviderChange = (p: AIProvider) => {
     setProvider(p);
     setActiveProvider(p);
-    updateConfig({ model: PROVIDER_DEFAULTS[p].model });
+    setConfigs(prev => ({
+      ...prev,
+      [p]: {
+        ...prev[p],
+        model: prev[p]?.model || PROVIDER_DEFAULTS[p].model,
+      },
+    }));
     setTestStatus('idle');
   };
 
@@ -109,6 +115,34 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) =
           placeholder="Enter your API key"
           className="w-full border rounded p-2 text-sm"
         />
+      </div>
+
+      <div>
+        <label className="text-[10px] font-bold uppercase text-gray-400 block mb-1">Model</label>
+        {provider === 'custom' ? (
+          <input
+            type="text"
+            value={currentConfig.model}
+            onChange={e => updateConfig({ model: e.target.value })}
+            placeholder="Enter model id"
+            className="w-full border rounded p-2 text-sm"
+          />
+        ) : (
+          <select
+            value={currentConfig.model}
+            onChange={e => updateConfig({ model: e.target.value })}
+            className="w-full border rounded p-2 text-sm bg-white"
+          >
+            {PROVIDER_MODELS[provider].map(model => (
+              <option key={model.value} value={model.value}>{model.label}</option>
+            ))}
+          </select>
+        )}
+        {provider === 'deepseek' && (
+          <div className="text-[9px] text-gray-400 mt-1">
+            Use DeepSeek V4 Pro by selecting "DeepSeek V4 Pro" (model id: v4pro).
+          </div>
+        )}
       </div>
 
       <div>

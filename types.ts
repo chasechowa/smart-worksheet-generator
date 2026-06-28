@@ -315,6 +315,7 @@ export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string 
   deepseek: [
     { label: 'DeepSeek V3', value: 'deepseek-chat' },
     { label: 'DeepSeek R1', value: 'deepseek-reasoner' },
+    { label: 'DeepSeek V4 Pro', value: 'v4pro' },
   ],
   kimi: [
     { label: 'Moonshot v1 8k', value: 'moonshot-v1-8k' },
