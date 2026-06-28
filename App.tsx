@@ -320,7 +320,7 @@ export default function App() {
       );
 
       // Run final validation (auto-fixes mechanical issues like option rotation)
-      const validation = validateWorksheet(rawData, article);
+      const validation = validateWorksheet(rawData, article, settings.difficulty);
       const errors = validation.issues.filter(i => i.severity === 'error');
       const warnings = validation.issues.filter(i => i.severity === 'warning');
       const finalData = validation.data;
@@ -380,7 +380,7 @@ export default function App() {
           setLoadingMessage(`Refining (round ${round}) — ${report.fixedIssues.length} fixed, ${report.remainingIssues.length} remaining...`);
         },
       );
-      const validation = validateWorksheet(rawData, article);
+      const validation = validateWorksheet(rawData, article, settings.difficulty);
       setValidationResult(validation);
       setData(validation.data);
     } catch (err: any) {

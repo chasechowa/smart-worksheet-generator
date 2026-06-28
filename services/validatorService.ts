@@ -1,8 +1,8 @@
-import type { WorksheetData, ValidationResult } from '../types';
+import type { WorksheetData, ValidationResult, Difficulty } from '../types';
 import { validateAll } from '../validators';
 
-export function validateWorksheet(data: WorksheetData, articleText: string): ValidationResult {
-  const { issues, fixedData } = validateAll(data, articleText);
+export function validateWorksheet(data: WorksheetData, articleText: string, difficulty?: Difficulty): ValidationResult {
+  const { issues, fixedData } = validateAll(data, articleText, difficulty);
 
   const errors = issues.filter(i => i.severity === 'error');
 

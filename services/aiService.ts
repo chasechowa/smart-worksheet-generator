@@ -278,6 +278,37 @@ function buildMCExamples(difficulty: Difficulty): string {
 `;
 }
 
+function buildC1MCBlueprint(difficulty: Difficulty): string {
+  if (difficulty !== 'C1') return '';
+
+  return `
+    C1 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS; THIS OVERRIDES THE NON-C1 TABLE BELOW):
+    - Q1 Main Idea, cognitiveLevel: synthesis. Test the central thesis without reusing the article's wording.
+    - Q2 Inference, cognitiveLevel: synthesis. Require cross-paragraph synthesis; no single sentence may answer it.
+    - Q3 Inference, cognitiveLevel: synthesis. Ask about an unstated implication, limitation, or tension in the author's argument.
+    - Q4 Evidence Reasoning, cognitiveLevel: inference. Claim question; link it to Q5 with evidencePairLink.
+    - Q5 Evidence Reasoning, cognitiveLevel: inference. Evidence question for Q4; options must be short verbatim quotations.
+    - Q6 Inference, cognitiveLevel: synthesis. Require counterfactual reasoning ("if X had not happened...").
+    - Q7 Structure / Function / Synthesis, cognitiveLevel: synthesis. Test rhetorical strategy or argumentative function, not topic recall.
+    - Q8 Vocabulary in Context, cognitiveLevel: inference. Target an abstract, academic, or context-dependent word/phrase; all 4 options must be C1/C2-level.
+    - Q9 Inference, cognitiveLevel: synthesis. Require evaluating how two details interact.
+    - Q10 Structure / Function / Synthesis, cognitiveLevel: synthesis. Ask about transfer, application, or a constraint implied by the article.
+
+    C1 BANNED QUESTION PATTERNS:
+    - No standalone "Which company...", "What percentage...", "How many...", "When...", or "Where..." questions.
+    - No "According to the passage..." stems.
+    - No direct fact-location questions unless embedded inside a harder evidence pair.
+    - No answer that can be found by keyword matching one sentence.
+    - No correct answer may copy more than 6 consecutive words from the passage, except evidence quotes.
+
+    C1 REQUIRED METADATA:
+    - For every Inference and Structure / Function / Synthesis question, include:
+      "evidence": ["paragraph/sentence reference 1", "paragraph/sentence reference 2"],
+      "reasoningSteps": ["step 1", "step 2", "step 3"]
+    - For Q4 and Q5, include matching evidencePairLink fields.
+`;
+}
+
 function buildPrompt(article: string, difficulty: Difficulty): string {
   const profile = getDifficultyProfile(difficulty);
 
@@ -352,7 +383,7 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     ╔══════════════════════════════════════════════════════════════╗
     ║  DIFFICULTY GRADIENT — ${profile.label}                  ║
     ╚══════════════════════════════════════════════════════════════╝
-    - Inference steps: ${profile.mcQuestions.inferenceSteps[0]}–${profile.mcQuestions.inferenceSteps[1]} per question
+    - Inference steps: ${profile.mcQuestions.inferenceSteps[0]}-${profile.mcQuestions.inferenceSteps[1]} per question
     - Distractor quality: ${profile.mcQuestions.distractorPlausibility}
     - Paraphrase: ${profile.mcQuestions.paraphraseStrict ? 'STRICT — correct answer must NEVER reuse passage wording verbatim' : profile.mcQuestions.paraphraseRequired ? 'Required — correct answer uses different wording than passage' : 'May use similar wording'}
     ${profile.mcQuestions.counterfactualRequired ? '- COUNTERFACTUAL REQUIRED: At least 1 question must use "If X had not happened, then Y..." reasoning' : ''}
@@ -363,7 +394,9 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     ║  QUESTION REQUIREMENTS                                      ║
     ╚══════════════════════════════════════════════════════════════╝
 
-    TYPE DISTRIBUTION (EXACT):
+    ${buildC1MCBlueprint(difficulty)}
+
+    TYPE DISTRIBUTION (EXACT FOR A2/B1/B2 ONLY; C1 MUST FOLLOW THE C1 BLUEPRINT ABOVE):
     ┌──────────────────────────────┬────────┬──────────────────────────┐
     │ Type                         │ Count  │ Core Exam Skill           │
     ├──────────────────────────────┼────────┼──────────────────────────┤
@@ -410,6 +443,7 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     - Answer = single letter A/B/C/D.
     - Correct answers: 2-3 per letter.
     - Every question: explanation + cognitiveLevel + distractors.
+    - C1 only: every Inference and Structure / Function / Synthesis question must also include evidence[] and reasoningSteps[].
 
     Part 3 (Syntax Deconstruction):
     - ${profile.syntax.guidance}
@@ -468,6 +502,7 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     ═══════════════════════════════════════════════════════════════
 
     Output format: JSON only.
+    For C1, do not use the Literal Comprehension example below; follow the C1 blueprint and include evidence[] and reasoningSteps[] where required.
     {
       "title": "A Compelling Title",
       "articleSnippet": "~200-word verbatim excerpt from the article",
@@ -1038,7 +1073,7 @@ export async function generateAndRefine(
   const { validateAll } = await import('../validators');
 
   for (let r = 0; r < MAX_REFINEMENT_ROUNDS; r++) {
-    const { issues: beforeIssues, fixedData } = validateAll(data, article);
+    const { issues: beforeIssues, fixedData } = validateAll(data, article, difficulty);
     data = fixedData; // Apply mechanical auto-fixes
 
     const { critical, major, minor } = groupIssues(beforeIssues);
@@ -1075,7 +1110,7 @@ export async function generateAndRefine(
     }
 
     // --- Post-refinement validation ---
-    const { issues: afterIssues, fixedData: afterFixed } = validateAll(data, article);
+    const { issues: afterIssues, fixedData: afterFixed } = validateAll(data, article, difficulty);
     data = afterFixed;
 
     // --- Diff check ---

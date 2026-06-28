@@ -1,9 +1,9 @@
-import type { WorksheetData, ValidationIssue, MCQuestion, MCQuestionType, DistractorPattern } from '../types';
+import type { WorksheetData, ValidationIssue, MCQuestion, MCQuestionType, DistractorPattern, Difficulty } from '../types';
 
 const EXPECTED_MC_COUNT = 10;
 
-// Current type distribution (exact counts)
-const EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
+// Default type distribution (exact counts)
+const DEFAULT_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
   'Main Idea': 1,
   'Literal Comprehension': 2,
   'Inference': 3,
@@ -12,7 +12,20 @@ const EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
   'Structure / Function / Synthesis': 1,
 };
 
-const ALLOWED_TYPES: MCQuestionType[] = Object.keys(EXPECTED_TYPE_COUNTS) as MCQuestionType[];
+const C1_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
+  'Main Idea': 1,
+  'Literal Comprehension': 0,
+  'Inference': 4,
+  'Evidence Reasoning': 2,
+  'Vocabulary in Context': 1,
+  'Structure / Function / Synthesis': 2,
+};
+
+function getExpectedTypeCounts(difficulty?: Difficulty): Record<MCQuestionType, number> {
+  return difficulty === 'C1' ? C1_EXPECTED_TYPE_COUNTS : DEFAULT_EXPECTED_TYPE_COUNTS;
+}
+
+const ALLOWED_TYPES: MCQuestionType[] = Object.keys(DEFAULT_EXPECTED_TYPE_COUNTS) as MCQuestionType[];
 
 const ALLOWED_PATTERNS: DistractorPattern[] = [
   'Too Broad', 'Too Narrow', 'Partially True',
@@ -130,9 +143,10 @@ function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
   return result;
 }
 
-export function validateMC(data: WorksheetData): { issues: ValidationIssue[]; fixedData: WorksheetData } {
+export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issues: ValidationIssue[]; fixedData: WorksheetData } {
   const issues: ValidationIssue[] = [];
   const mc = data.multipleChoice || [];
+  const expectedTypeCounts = getExpectedTypeCounts(difficulty);
 
   if (mc.length !== EXPECTED_MC_COUNT) {
     issues.push({
@@ -227,12 +241,12 @@ export function validateMC(data: WorksheetData): { issues: ValidationIssue[]; fi
   });
 
   // ---- Type distribution checks (new exact count system) ----
-  for (const [typeName, expectedCount] of Object.entries(EXPECTED_TYPE_COUNTS)) {
+  for (const [typeName, expectedCount] of Object.entries(expectedTypeCounts)) {
     const actual = typeCounts[typeName] || 0;
     if (actual !== expectedCount) {
       issues.push({
         type: 'rule', section: 'mc', severity: 'warning',
-        message: `Expected exactly ${expectedCount} "${typeName}" question(s), got ${actual}`,
+        message: `${difficulty === 'C1' ? 'C1: ' : ''}Expected exactly ${expectedCount} "${typeName}" question(s), got ${actual}`,
         suggestion: `Adjust question types to match the distribution`,
       });
     }
@@ -372,24 +386,28 @@ export function validateMC(data: WorksheetData): { issues: ValidationIssue[]; fi
   const inferenceCount = cognitiveLevels['inference'] || 0;
   const synthesisCount = cognitiveLevels['synthesis'] || 0;
 
-  if (retrievalCount > 2) {
+  const maxRetrieval = difficulty === 'C1' ? 1 : 2;
+  const minInference = difficulty === 'C1' ? 4 : 3;
+  const minSynthesis = difficulty === 'C1' ? 5 : 1;
+
+  if (retrievalCount > maxRetrieval) {
     issues.push({
       type: 'rule', section: 'mc', severity: 'warning',
-      message: `Too many retrieval-level questions (${retrievalCount}/10). Max 2 allowed.`,
+      message: `Too many retrieval-level questions (${retrievalCount}/10). Max ${maxRetrieval} allowed.`,
       suggestion: 'Convert excess retrieval questions to inference or synthesis level',
     });
   }
-  if (inferenceCount < 3) {
+  if (inferenceCount < minInference) {
     issues.push({
       type: 'rule', section: 'mc', severity: 'warning',
-      message: `Too few inference-level questions (${inferenceCount}/10). At least 3 required.`,
-      suggestion: 'Ensure at least 3 questions require combining information or identifying implications',
+      message: `Too few inference-level questions (${inferenceCount}/10). At least ${minInference} required.`,
+      suggestion: `Ensure at least ${minInference} questions require combining information or identifying implications`,
     });
   }
-  if (synthesisCount < 1) {
+  if (synthesisCount < minSynthesis) {
     issues.push({
       type: 'rule', section: 'mc', severity: 'warning',
-      message: `No synthesis-level questions. At least 1 required.`,
+      message: `Too few synthesis-level questions (${synthesisCount}/10). At least ${minSynthesis} required.`,
       suggestion: 'Add a question requiring transfer, evaluation, or cross-passage reasoning',
     });
   }

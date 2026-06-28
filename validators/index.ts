@@ -1,11 +1,12 @@
-import type { WorksheetData, ValidationIssue } from '../types';
+import type { WorksheetData, ValidationIssue, Difficulty } from '../types';
 import { validateSummary } from './summaryValidator';
 import { validateMC } from './mcValidator';
 import { validateSyntax } from './syntaxValidator';
 import { validateWriting } from './writingValidator';
 import { validateKeys } from './keysValidator';
+import { validateC1Boundaries } from './c1Validator';
 
-export function validateAll(data: WorksheetData, articleText: string): { issues: ValidationIssue[]; fixedData: WorksheetData } {
+export function validateAll(data: WorksheetData, articleText: string, difficulty?: Difficulty): { issues: ValidationIssue[]; fixedData: WorksheetData } {
   const issues: ValidationIssue[] = [];
 
   // Global checks
@@ -18,9 +19,12 @@ export function validateAll(data: WorksheetData, articleText: string): { issues:
 
   // Section validators — each mutates data as needed to auto-fix warnings
   issues.push(...validateSummary(data, articleText));
-  const mcResult = validateMC(data);
+  const mcResult = validateMC(data, difficulty);
   issues.push(...mcResult.issues);
   let fixedData = mcResult.fixedData;
+  if (difficulty === 'C1') {
+    issues.push(...validateC1Boundaries(fixedData.multipleChoice || [], articleText));
+  }
   issues.push(...validateSyntax(fixedData, articleText));
   issues.push(...validateWriting(fixedData, articleText));
   issues.push(...validateKeys(fixedData));
@@ -34,3 +38,4 @@ export * from './syntaxValidator';
 export * from './writingValidator';
 export * from './keysValidator';
 export * from './verbatimMatcher';
+export * from './c1Validator';

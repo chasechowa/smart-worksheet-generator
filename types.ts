@@ -186,6 +186,10 @@ export interface MCQuestion {
   options: string[];
   answer: string;                 // single letter A/B/C/D
   explanation: string;            // rationale for the correct answer
+  /** Optional sentence/paragraph references used by hard difficulty validators */
+  evidence?: string[];
+  /** Optional reasoning chain used by hard difficulty validators */
+  reasoningSteps?: string[];
   /** Distractor metadata — keyed by option letter (wrong options only) */
   distractors?: Record<string, DistractorMeta>;
   /** If this question is part of an evidence pair, link to its sibling */
