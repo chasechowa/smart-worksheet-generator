@@ -118,6 +118,18 @@ describe('validateMC', () => {
     expect(issues.some(i => i.message.includes('duplicate option'))).toBe(true);
   });
 
+  it('reports malformed options without throwing', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A')
+    );
+    delete (questions[0] as any).options;
+
+    expect(() => validateMC(createMCData(questions))).not.toThrow();
+    const { issues, fixedData } = validateMC(createMCData(questions));
+    expect(fixedData.multipleChoice[0].options).toEqual([]);
+    expect(issues.some(i => i.message.includes('Q1: Expected 4 options, got 0'))).toBe(true);
+  });
+
   it('accepts letter-format answers cleanly without conversion warning', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
       makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'B', ['Alpha', 'Beta', 'Gamma', 'Delta'])

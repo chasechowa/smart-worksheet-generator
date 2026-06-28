@@ -68,7 +68,7 @@ const TYPE_MIGRATION: Record<string, MCQuestionType> = {
 };
 
 function stripPrefix(text: string): string {
-  return text.replace(/^[A-Da-d][.)\]]\s*/, '').replace(/^\d+[.)\]]\s*/, '').trim();
+  return String(text ?? '').replace(/^[A-Da-d][.)\]]\s*/, '').replace(/^\d+[.)\]]\s*/, '').trim();
 }
 
 /**
@@ -83,14 +83,15 @@ function normalizeAnswerLetter(q: MCQuestion): { letter: string; converted: bool
     return { letter: q.answer!.trim().toUpperCase(), converted: false };
   }
 
-  // Backward compat: answer is option text — try to find matching option
+  // Backward compat: answer is option text - try to find matching option
   const cleanAnswer = stripPrefix(q.answer).toLowerCase();
   if (!cleanAnswer) return null;
 
-  const idx = q.options.findIndex(opt => {
+  const options = Array.isArray(q.options) ? q.options : [];
+  const idx = options.findIndex(opt => {
     const cleanOpt = stripPrefix(opt).toLowerCase();
     return cleanOpt === cleanAnswer ||
-           opt.toLowerCase().trim() === q.answer?.toLowerCase().trim();
+           String(opt ?? '').toLowerCase().trim() === q.answer?.toLowerCase().trim();
   });
 
   if (idx >= 0) {
@@ -203,13 +204,14 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
 
   // Step 1: normalise each question
   let fixedMC: MCQuestion[] = mc.map((q, i) => {
+    const rawOptions = Array.isArray(q.options) ? q.options : [];
     const fixedQ: MCQuestion = {
       ...q,
-      options: q.options.map(opt => stripPrefix(opt)),
+      options: rawOptions.map(opt => stripPrefix(opt)),
     };
 
-    if (q.options.length !== 4) {
-      issues.push({ type: 'rule', section: 'mc', severity: 'error', message: `Q${i + 1}: Expected 4 options, got ${q.options.length}` });
+    if (rawOptions.length !== 4) {
+      issues.push({ type: 'rule', section: 'mc', severity: 'error', message: `Q${i + 1}: Expected 4 options, got ${rawOptions.length}` });
     }
 
     const emptyOptions = fixedQ.options.filter(o => !o || o.trim().length === 0);

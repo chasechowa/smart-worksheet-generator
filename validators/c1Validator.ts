@@ -94,6 +94,7 @@ export function validateC1Boundaries(
 
     if (q.type === 'Vocabulary in Context') {
       const stemWords = normalizeWords(q.question);
+      const options = Array.isArray(q.options) ? q.options : [];
       for (const word of stemWords) {
         if (BANNED_VOCAB_WORDS.has(word)) {
           issues.push({
@@ -107,7 +108,7 @@ export function validateC1Boundaries(
         }
       }
 
-      for (const opt of q.options) {
+      for (const opt of options) {
         const lowLevelCount = normalizeWords(opt).filter(w => BANNED_VOCAB_WORDS.has(w)).length;
         if (lowLevelCount > 0) {
           issues.push({
@@ -132,7 +133,8 @@ export function validateC1Boundaries(
     }
 
     if (q.type !== 'Vocabulary in Context' && q.type !== 'Evidence Reasoning') {
-      const correctOption = q.options.find((_, idx) =>
+      const options = Array.isArray(q.options) ? q.options : [];
+      const correctOption = options.find((_, idx) =>
         String.fromCharCode(65 + idx) === q.answer?.toUpperCase()
       );
       if (correctOption) {
