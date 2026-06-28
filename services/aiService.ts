@@ -743,7 +743,7 @@ const callGemini = async (prompt: string, modelName: string, apiKey: string): Pr
 // ==================== OpenAI-Compatible Provider ====================
 
 const PROVIDER_BASE_URLS: Record<string, string> = {
-  deepseek: 'https://api.deepseek.com/v1',
+  deepseek: 'https://api.deepseek.com',
   kimi: 'https://api.moonshot.cn/v1',
 };
 

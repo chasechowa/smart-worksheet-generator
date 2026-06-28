@@ -41,7 +41,12 @@ export function initDefaultConfigs(): ProviderConfigs {
 }
 
 function ensureConfigs(): ProviderConfigs {
-  return getStoredConfigs() || initDefaultConfigs();
+  const configs = getStoredConfigs() || initDefaultConfigs();
+  if (configs.providers.deepseek?.model === 'v4pro') {
+    configs.providers.deepseek.model = 'deepseek-v4-pro';
+    saveStoredConfigs(configs);
+  }
+  return configs;
 }
 
 export function getProviderConfig(provider: AIProvider): AIConfig | undefined {

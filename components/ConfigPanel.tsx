@@ -61,7 +61,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) =
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${config.apiKey}&pageSize=1`);
         if (!res.ok) throw new Error(`API returned ${res.status}`);
       } else {
-        const base = config.baseUrl || (config.provider === 'deepseek' ? 'https://api.deepseek.com/v1' : 'https://api.moonshot.cn/v1');
+        const base = config.baseUrl || (config.provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.moonshot.cn/v1');
         // Use a minimal chat completion to verify the key (not all providers expose /models)
         const res = await fetch(`${base}/chat/completions`, {
           method: 'POST',
@@ -140,7 +140,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) =
         )}
         {provider === 'deepseek' && (
           <div className="text-[9px] text-gray-400 mt-1">
-            Use DeepSeek V4 Pro by selecting "DeepSeek V4 Pro" (model id: v4pro).
+            Use DeepSeek V4 Pro by selecting "DeepSeek V4 Pro" (model id: deepseek-v4-pro).
           </div>
         )}
       </div>
