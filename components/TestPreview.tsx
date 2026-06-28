@@ -536,26 +536,32 @@ const WorksheetPaper: React.FC<{
   return (
     <div className={`paper mx-auto bg-white p-8 md:p-12 shadow-sm ${viewMode === 'editor' ? 'min-h-[29.7cm]' : ''} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : 'max-w-[210mm]'}`}>
       {/* Header */}
-      <div className="mb-8 border-b-2 border-gray-800 pb-4">
-          <div className="flex justify-between items-end">
-              <div>
-                  <h1 className="text-3xl font-black uppercase tracking-widest text-gray-900 mb-2">
-                    <PrintableField 
-                        value={data.title} 
-                        onChange={(e) => update('title', e.target.value)} 
-                        viewMode={viewMode}
-                        tagName="h1"
-                        placeholder="Untitled Worksheet"
-                     />
-                  </h1>
-                  <div className="flex gap-4 text-sm font-bold text-gray-600 uppercase tracking-wider">
-                      <span>Level: {settings.difficulty}</span>
-                      {settings.teacherName && <span>Instructor: {settings.teacherName}</span>}
-                  </div>
+      <div className="mb-8 border-b-2 border-gray-800 pb-5">
+          <h1 className="text-3xl font-black uppercase tracking-widest text-gray-900 mb-6 text-center">
+            <PrintableField
+                value={data.title}
+                onChange={(e) => update('title', e.target.value)}
+                viewMode={viewMode}
+                tagName="h1"
+                placeholder="Untitled Worksheet"
+             />
+          </h1>
+
+          <div className="grid grid-cols-3 gap-6 text-sm font-bold text-gray-600 uppercase tracking-wider items-end">
+              <div className="flex items-end gap-2">
+                  <span className="shrink-0">Name:</span>
+                  <span className="block flex-1 border-b-2 border-gray-300 h-5">
+                    {settings.teacherName ? (
+                      <span className="normal-case tracking-normal text-gray-900">{settings.teacherName}</span>
+                    ) : null}
+                  </span>
               </div>
-              <div className="text-right">
-                  <div className="text-xs font-bold text-gray-400 uppercase">Date</div>
-                  <div className="w-32 border-b-2 border-gray-300 h-6"></div>
+              <div className="text-center">
+                  <span>Level: {settings.difficulty}</span>
+              </div>
+              <div className="flex items-end gap-2">
+                  <span className="shrink-0">Score:</span>
+                  <span className="block flex-1 border-b-2 border-gray-300 h-5"></span>
               </div>
           </div>
       </div>

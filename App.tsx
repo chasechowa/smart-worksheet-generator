@@ -266,8 +266,16 @@ export default function App() {
       updatedProject.worksheets.push(data);
     }
 
+    const hasContentChange =
+      updatedProject.articleText !== currentProject.articleText ||
+      updatedProject.difficulty !== currentProject.difficulty ||
+      JSON.stringify(updatedProject.worksheets) !== JSON.stringify(currentProject.worksheets);
+
+    if (!hasContentChange) return;
+
+    setCurrentProject(updatedProject);
     saveProject(updatedProject).catch(console.error);
-  }, [data, currentProject]);
+  }, [data, currentProject, article, settings.difficulty]);
 
   // Cache compiled Tailwind CSS for self-contained HTML export (no CDN dependency)
   const exportTailwindCSS = useRef<string>('');
