@@ -84,6 +84,19 @@ function normalizeProject(project: Project): Project {
   };
 }
 
+function hasWorksheetContent(worksheet: WorksheetData): boolean {
+  return Boolean(
+    worksheet.articleSnippet?.trim() ||
+    worksheet.summary?.paragraph?.trim() ||
+    worksheet.multipleChoice?.length ||
+    worksheet.syntaxDeconstruction?.length ||
+    worksheet.writingWorkshop?.expansion?.length ||
+    worksheet.writingWorkshop?.keywords?.length ||
+    worksheet.writingWorkshop?.qaChain?.length ||
+    worksheet.writingWorkshop?.criticalThinking?.trim()
+  );
+}
+
 // --- Styles for Exported HTML ---
 const BASE_STYLES = `
   body {
@@ -347,6 +360,7 @@ export default function App() {
   // Auto-save project when data changes
   useEffect(() => {
     if (!currentProject || !data) return;
+    if (!hasWorksheetContent(data)) return;
 
     const updatedProject: Project = {
       ...currentProject,
@@ -421,7 +435,6 @@ export default function App() {
       const errors = validation.issues.filter(i => i.severity === 'error');
       const warnings = validation.issues.filter(i => i.severity === 'warning');
       const finalData = validation.data;
-      setData(finalData);
 
       // Show refinement summary from structured reports
       if (rounds > 0) {
@@ -444,7 +457,12 @@ export default function App() {
       // Show validation panel only for hard errors
       if (errors.length > 0) {
         setValidationResult({ ...validation, data: finalData });
+        setError('Generation returned an invalid worksheet. Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning incomplete output.');
+        return;
       }
+
+      setData(finalData);
+      setValidationResult(null);
 
       // Create or update project
       if (!currentProject) {
@@ -480,6 +498,11 @@ export default function App() {
       const normalizedRawData = normalizeWorksheetData(rawData);
       const validation = validateWorksheet(normalizedRawData, article, settings.difficulty);
       setValidationResult(validation);
+      const errors = validation.issues.filter(i => i.severity === 'error');
+      if (errors.length > 0) {
+        setError('Regeneration returned an invalid worksheet. Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning incomplete output.');
+        return;
+      }
       setData(validation.data);
     } catch (err: any) {
       setError(err.message || 'Failed to regenerate');
@@ -501,8 +524,9 @@ export default function App() {
     setCurrentProject(normalizedProject);
     setArticle(normalizedProject.articleText);
     setSettings(prev => ({ ...prev, difficulty: normalizedProject.difficulty }));
-    if (normalizedProject.worksheets.length > 0) {
-      const latest = normalizedProject.worksheets[normalizedProject.worksheets.length - 1];
+    const renderableWorksheets = normalizedProject.worksheets.filter(hasWorksheetContent);
+    if (renderableWorksheets.length > 0) {
+      const latest = renderableWorksheets[renderableWorksheets.length - 1];
       setData(latest);
     } else {
       setData(null);

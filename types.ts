@@ -330,7 +330,7 @@ export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string 
 
 export const PROVIDER_DEFAULTS: Record<AIProvider, { model: string }> = {
   gemini: { model: 'gemini-3-flash-preview' },
-  deepseek: { model: 'deepseek-v4-flash' },
+  deepseek: { model: 'deepseek-v4-pro' },
   kimi: { model: 'moonshot-v1-8k' },
   custom: { model: 'custom-model' },
 };

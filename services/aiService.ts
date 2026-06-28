@@ -657,6 +657,46 @@ function extractJSON(text: string): string {
   return text.trim();
 }
 
+function extractMessageContent(message: any): string {
+  const content = message?.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(part => {
+        if (typeof part === 'string') return part;
+        if (typeof part?.text === 'string') return part.text;
+        return '';
+      })
+      .join('\n')
+      .trim();
+  }
+  return '';
+}
+
+function assertWorksheetLike(parsed: any, provider: AIProvider, modelName: string): WorksheetData {
+  const hasWorksheetShape =
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    (
+      typeof parsed.title === 'string' ||
+      typeof parsed.articleSnippet === 'string' ||
+      parsed.summary ||
+      Array.isArray(parsed.multipleChoice) ||
+      Array.isArray(parsed.syntaxDeconstruction) ||
+      parsed.writingWorkshop
+    );
+
+  if (!hasWorksheetShape) {
+    throw new Error(
+      `AI returned an empty or non-worksheet JSON object from ${provider}/${modelName}. ` +
+      `Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning empty output.`
+    );
+  }
+
+  return parsed as WorksheetData;
+}
+
 // ==================== Gemini Provider ====================
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
@@ -777,8 +817,13 @@ const callOpenAICompatible = async (
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.5,
     max_tokens: PROVIDER_MAX_TOKENS[provider] || 8192,
-    response_format: { type: 'json_object' },
   };
+
+  // DeepSeek V4 Flash can return "{}" under JSON mode for long structured prompts.
+  // The prompt already enforces JSON-only output, and extractJSON handles fences/text.
+  if (!(provider === 'deepseek' && modelName.startsWith('deepseek-v4-'))) {
+    body.response_format = { type: 'json_object' };
+  }
 
   const response = await proxyFetch(url, {
     method: 'POST',
@@ -805,11 +850,19 @@ const callOpenAICompatible = async (
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || '{}';
+  const message = data.choices?.[0]?.message;
+  const content = extractMessageContent(message);
+  if (!content.trim()) {
+    throw new Error(
+      `API returned empty content from ${provider}/${modelName}. ` +
+      `Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning empty output.`
+    );
+  }
   const jsonText = extractJSON(content);
 
   try {
-    return JSON.parse(jsonText) as WorksheetData;
+    const parsed = JSON.parse(jsonText);
+    return assertWorksheetLike(parsed, provider, modelName);
   } catch (parseErr: any) {
     console.error("Failed to parse JSON from API response:", content);
     const trimmed = content.trim();
