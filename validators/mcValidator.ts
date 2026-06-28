@@ -21,8 +21,29 @@ const C1_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
   'Structure / Function / Synthesis': 2,
 };
 
+const A2_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
+  'Main Idea': 1,
+  'Literal Comprehension': 6,
+  'Inference': 1,
+  'Evidence Reasoning': 0,
+  'Vocabulary in Context': 1,
+  'Structure / Function / Synthesis': 1,
+};
+
+const B1_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
+  'Main Idea': 1,
+  'Literal Comprehension': 4,
+  'Inference': 3,
+  'Evidence Reasoning': 0,
+  'Vocabulary in Context': 1,
+  'Structure / Function / Synthesis': 1,
+};
+
 function getExpectedTypeCounts(difficulty?: Difficulty): Record<MCQuestionType, number> {
-  return difficulty === 'C1' ? C1_EXPECTED_TYPE_COUNTS : DEFAULT_EXPECTED_TYPE_COUNTS;
+  if (difficulty === 'A2') return A2_EXPECTED_TYPE_COUNTS;
+  if (difficulty === 'B1') return B1_EXPECTED_TYPE_COUNTS;
+  if (difficulty === 'C1') return C1_EXPECTED_TYPE_COUNTS;
+  return DEFAULT_EXPECTED_TYPE_COUNTS;
 }
 
 const ALLOWED_TYPES: MCQuestionType[] = Object.keys(DEFAULT_EXPECTED_TYPE_COUNTS) as MCQuestionType[];
@@ -386,9 +407,24 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
   const inferenceCount = cognitiveLevels['inference'] || 0;
   const synthesisCount = cognitiveLevels['synthesis'] || 0;
 
-  const maxRetrieval = difficulty === 'C1' ? 1 : 2;
-  const minInference = difficulty === 'C1' ? 4 : 3;
-  const minSynthesis = difficulty === 'C1' ? 5 : 1;
+  const maxRetrieval =
+    difficulty === 'A2' ? 8 :
+    difficulty === 'B1' ? 5 :
+    difficulty === 'C1' ? 1 :
+    difficulty === 'B2' ? 2 :
+    2;
+  const minInference =
+    difficulty === 'A2' ? 1 :
+    difficulty === 'B1' ? 3 :
+    difficulty === 'C1' ? 4 :
+    difficulty === 'B2' ? 5 :
+    3;
+  const minSynthesis =
+    difficulty === 'A2' ? 0 :
+    difficulty === 'B1' ? 1 :
+    difficulty === 'C1' ? 5 :
+    difficulty === 'B2' ? 3 :
+    1;
 
   if (retrievalCount > maxRetrieval) {
     issues.push({

@@ -278,8 +278,72 @@ function buildMCExamples(difficulty: Difficulty): string {
 `;
 }
 
-function buildC1MCBlueprint(difficulty: Difficulty): string {
-  if (difficulty !== 'C1') return '';
+function buildLevelMCBlueprint(difficulty: Difficulty): string {
+  if (difficulty === 'A2') {
+    return `
+    A2 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS):
+    - Q1 Main Idea, cognitiveLevel: retrieval. Ask what the whole passage is mainly about in simple words.
+    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for one clearly stated person, thing, place, or action.
+    - Q3 Literal Comprehension, cognitiveLevel: retrieval. Ask for one clearly stated fact.
+    - Q4 Literal Comprehension, cognitiveLevel: retrieval. Ask what happens first/next or what a named thing does.
+    - Q5 Literal Comprehension, cognitiveLevel: retrieval. Ask for a directly stated cause, result, or description.
+    - Q6 Literal Comprehension, cognitiveLevel: retrieval. Ask for another directly stated key detail.
+    - Q7 Vocabulary in Context, cognitiveLevel: retrieval. Target a common A1-A2 word with a clear clue in the sentence.
+    - Q8 Literal Comprehension, cognitiveLevel: retrieval. Ask for one directly stated number, object, or simple action only if it is central.
+    - Q9 Inference, cognitiveLevel: inference. Use one very simple inference from one sentence, such as cause/effect.
+    - Q10 Structure / Function / Synthesis, cognitiveLevel: inference. Ask why one example or sentence is included, using very simple language.
+
+    A2 BOUNDARIES:
+    - No Evidence Reasoning questions.
+    - No "EXCEPT", "NOT", counterfactual, rhetorical strategy, or multi-paragraph inference questions.
+    - Options must be short and simple; wrong answers should be obviously wrong from the text.
+    - Do not use academic vocabulary in stems or options.
+`;
+  }
+
+  if (difficulty === 'B1') {
+    return `
+    B1 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS):
+    - Q1 Main Idea, cognitiveLevel: inference. Ask for the main point using different words from the passage.
+    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for a stated key fact.
+    - Q3 Literal Comprehension, cognitiveLevel: retrieval. Ask for a stated cause, result, or process step.
+    - Q4 Literal Comprehension, cognitiveLevel: retrieval. Ask for another stated detail that matters to the article.
+    - Q5 Literal Comprehension, cognitiveLevel: retrieval. Ask for a stated comparison or example.
+    - Q6 Inference, cognitiveLevel: inference. Require one-step cause/effect or purpose reasoning.
+    - Q7 Inference, cognitiveLevel: inference. Require connecting two nearby details.
+    - Q8 Vocabulary in Context, cognitiveLevel: inference. Target a B1 word or phrase with clear context clues.
+    - Q9 Structure / Function / Synthesis, cognitiveLevel: synthesis. Ask why the author includes an example or contrast.
+    - Q10 Inference, cognitiveLevel: synthesis. Ask what lesson, result, or implication follows from the passage.
+
+    B1 BOUNDARIES:
+    - No Evidence Reasoning pair.
+    - No C1-style abstract critique, counterfactual reasoning, or subtle rhetorical strategy.
+    - Distractors should be plausible but still clearly eliminable from the text.
+    - Avoid pure trivia unless the detail is central to the article.
+`;
+  }
+
+  if (difficulty === 'B2') {
+    return `
+    B2 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS):
+    - Q1 Main Idea, cognitiveLevel: synthesis. Test the central argument across the whole article.
+    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for a central stated fact, not trivia.
+    - Q3 Literal Comprehension, cognitiveLevel: retrieval. Ask for another central stated detail that supports the argument.
+    - Q4 Inference, cognitiveLevel: inference. Require reading between the lines across one paragraph.
+    - Q5 Inference, cognitiveLevel: inference. Require connecting details from two parts of the article.
+    - Q6 Evidence Reasoning, cognitiveLevel: inference. Claim question; link it to Q7 with evidencePairLink.
+    - Q7 Evidence Reasoning, cognitiveLevel: inference. Evidence question for Q6; options must be short verbatim quotations.
+    - Q8 Vocabulary in Context, cognitiveLevel: inference. Target a B2 academic/polysemous word or phrase.
+    - Q9 Inference, cognitiveLevel: synthesis. Require evaluating an implication or likely consequence.
+    - Q10 Structure / Function / Synthesis, cognitiveLevel: synthesis. Ask about author purpose, structure, or how an example supports the argument.
+
+    B2 BOUNDARIES:
+    - Maximum 2 direct retrieval questions; no standalone trivia such as "Which company..." unless it supports a broader idea.
+    - The evidence pair must directly prove a claim, not merely mention the same topic.
+    - Distractors should be plausible text-based misreadings, not obviously false choices.
+    - Avoid C1-only demands such as 3-step abstract critique or C1/C2 vocabulary options.
+`;
+  }
 
   return `
     C1 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS; THIS OVERRIDES THE NON-C1 TABLE BELOW):
@@ -358,7 +422,12 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     Wrong answers are eliminated by: contradiction, not stated, or misapplied.
 
     M2 — PARAPHRASE GATE (IELTS/TOEFL critical)
-    The CORRECT answer MUST use different wording than the passage.
+    ${difficulty === 'A2'
+      ? 'A2 override: correct answers may use wording close to the passage because recognition is part of the task.'
+      : difficulty === 'B1'
+        ? 'B1 override: light paraphrase is preferred, but options must remain simple and clear.'
+        : 'B2/C1: correct answers should paraphrase the passage; C1 uses the strictest paraphrase gate.'}
+    ${difficulty === 'A2' ? 'For A2, correct answers may repeat short, simple wording from the passage.' : 'The CORRECT answer MUST use different wording than the passage.'}
     If an option repeats passage wording verbatim, it is likely a TRAP.
     Only Vocabulary in Context and Evidence quotes are exempt.
 
@@ -394,9 +463,10 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     ║  QUESTION REQUIREMENTS                                      ║
     ╚══════════════════════════════════════════════════════════════╝
 
-    ${buildC1MCBlueprint(difficulty)}
+    ${buildLevelMCBlueprint(difficulty)}
 
-    TYPE DISTRIBUTION (EXACT FOR A2/B1/B2 ONLY; C1 MUST FOLLOW THE C1 BLUEPRINT ABOVE):
+    LEGACY TYPE DISTRIBUTION TABLE (REFERENCE ONLY):
+    The level-specific blueprint above is authoritative. Do not override it with this older generic table.
     ┌──────────────────────────────┬────────┬──────────────────────────┐
     │ Type                         │ Count  │ Core Exam Skill           │
     ├──────────────────────────────┼────────┼──────────────────────────┤
@@ -487,9 +557,9 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     SELF-CHECK BEFORE OUTPUT:
     □ No more than ${profile.mcQuestions.maxRetrievalQuestions} direct retrieval questions
     □ At least ${profile.mcQuestions.minInferenceQuestions} genuine inference questions (not keyword-matchable)
-    □ Exactly 1 evidence pair (claim Q + evidence Q, explicitly linked)
-    □ At least 1 structure/function question
-    □ At least 1 transfer/synthesis question (answer not in passage)
+    □ ${difficulty === 'A2' || difficulty === 'B1' ? 'No evidence pair required at this level' : 'Exactly 1 evidence pair (claim Q + evidence Q, explicitly linked)'}
+    □ ${difficulty === 'A2' ? 'At most 1 very simple structure/function question' : 'At least 1 structure/function question'}
+    □ ${difficulty === 'A2' ? 'No transfer/synthesis question required' : 'At least 1 transfer/synthesis question (answer not in passage)'}
     □ Vocabulary options are all academically plausible
     □ Every wrong option passes the distractor test ("could a student reasonably choose this?")
     □ No absurd or obviously false distractors
