@@ -13,6 +13,10 @@ import { ValidationPanel } from './components/ValidationPanel';
 
 type ViewMode = 'editor' | 'print-std' | 'print-compact' | 'interactive' | 'pdf';
 
+function normalizeSummaryParagraph(paragraph: string): string {
+  return (paragraph || '').replace(/\[BLANK\d+\]/gi, '[BLANK]');
+}
+
 function normalizeWorksheetData(raw: Partial<WorksheetData> | null | undefined): WorksheetData {
   const data = raw || {};
   const keys = data.keys || {} as WorksheetData['keys'];
@@ -22,7 +26,7 @@ function normalizeWorksheetData(raw: Partial<WorksheetData> | null | undefined):
     title: data.title || 'Untitled Worksheet',
     articleSnippet: data.articleSnippet || '',
     summary: {
-      paragraph: data.summary?.paragraph || '',
+      paragraph: normalizeSummaryParagraph(data.summary?.paragraph || ''),
       blanks: Array.isArray(data.summary?.blanks) ? data.summary.blanks : [],
     },
     multipleChoice: Array.isArray(data.multipleChoice)
@@ -135,6 +139,66 @@ const BASE_STYLES = `
   h1 { font-weight: 900; text-transform: uppercase; text-align: center; font-size: 24pt !important; margin-bottom: 1rem; }
   h2 { font-weight: 900; text-transform: uppercase; margin-bottom: 0.5rem; font-size: 14pt !important; }
   .paper { margin: 0 auto; }
+
+  .worksheet-header {
+    border-bottom: 2px solid #1f2937;
+    margin-bottom: 2rem;
+    padding-bottom: 1.25rem;
+  }
+  .worksheet-title {
+    color: #111827;
+    font-size: 24pt !important;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    margin: 0 0 1.5rem 0 !important;
+    overflow-wrap: anywhere;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .worksheet-meta {
+    align-items: end;
+    color: #4b5563;
+    display: grid;
+    font-size: 10pt !important;
+    font-weight: 700;
+    gap: 1.5rem;
+    grid-template-columns: 1fr auto 1fr;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .worksheet-field {
+    align-items: end;
+    display: flex;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .worksheet-field-line {
+    border-bottom: 2px solid #d1d5db;
+    display: block;
+    flex: 1 1 auto;
+    height: 1.25rem;
+    min-width: 4rem;
+  }
+  .worksheet-level {
+    text-align: center;
+    white-space: nowrap;
+  }
+  .summary-blank {
+    border-bottom: 2px solid #111827;
+    display: inline-block;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0 0.25rem;
+    min-width: 7rem;
+    padding: 0 0.35rem 0.1rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .summary-blank::before {
+    content: "(" attr(data-index) ")";
+    color: #111827;
+  }
 
   .interactive-input { border: 1px solid #ccc; border-radius: 4px; padding: 2px 5px; background: #f9fafb; font-family: monospace; }
   .interactive-input:focus { outline: 2px solid #3b82f6; background: white; }
@@ -281,7 +345,7 @@ export default function App() {
   const exportTailwindCSS = useRef<string>('');
 
   useEffect(() => {
-    fetch('/export-tailwind.css')
+    fetch(`/export-tailwind.css?v=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.text())
       .then(css => { exportTailwindCSS.current = css; })
       .catch(() => console.warn('export-tailwind.css not found, export will use base styles only'));

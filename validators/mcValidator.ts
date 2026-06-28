@@ -49,7 +49,7 @@ function getExpectedTypeCounts(difficulty?: Difficulty): Record<MCQuestionType, 
 const ALLOWED_TYPES: MCQuestionType[] = Object.keys(DEFAULT_EXPECTED_TYPE_COUNTS) as MCQuestionType[];
 
 const ALLOWED_PATTERNS: DistractorPattern[] = [
-  'Too Broad', 'Too Narrow', 'Partially True',
+  'Too Broad', 'Too Narrow', 'Too Strong', 'Partially True',
   'Wrong Scope', 'Unsupported Inference', 'Reversed Logic',
 ];
 
@@ -110,7 +110,28 @@ function rotateOptions(q: MCQuestion, fromLetter: string, targetLetter: string):
   const shift = (fromIdx - toIdx + 4) % 4;
   if (shift === 0) return q;
   const rotated = [...q.options.slice(shift), ...q.options.slice(0, shift)];
-  return { ...q, options: rotated, answer: targetLetter };
+  const remappedDistractors: MCQuestion['distractors'] = {};
+
+  if (q.distractors) {
+    for (const [oldLetter, meta] of Object.entries(q.distractors)) {
+      const oldIdx = oldLetter.toUpperCase().charCodeAt(0) - 65;
+      if (oldIdx < 0 || oldIdx > 3) continue;
+      const newIdx = (oldIdx - shift + 4) % 4;
+      const newLetter = String.fromCharCode(65 + newIdx);
+      if (newLetter !== targetLetter) {
+        remappedDistractors[newLetter] = meta;
+      }
+    }
+  }
+
+  return {
+    ...q,
+    options: rotated,
+    answer: targetLetter,
+    distractors: q.distractors
+      ? (Object.keys(remappedDistractors).length > 0 ? remappedDistractors : undefined)
+      : undefined,
+  };
 }
 
 /**

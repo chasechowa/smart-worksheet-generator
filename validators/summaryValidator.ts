@@ -1,6 +1,8 @@
 import type { WorksheetData, ValidationIssue } from '../types';
 import { findVerbatimMatch, describeMatch, type VerbatimResult } from './verbatimMatcher';
 
+const BLANK_TOKEN_RE = /\[BLANK\d*\]/gi;
+
 export function validateSummary(data: WorksheetData, articleText: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const { summary, keys } = data;
@@ -8,6 +10,11 @@ export function validateSummary(data: WorksheetData, articleText: string): Valid
   if (!summary || !summary.paragraph) {
     issues.push({ type: 'structure', section: 'summary', severity: 'error', message: 'Summary paragraph is missing' });
     return issues;
+  }
+
+  const normalizedParagraph = summary.paragraph.replace(BLANK_TOKEN_RE, '[BLANK]');
+  if (normalizedParagraph !== summary.paragraph) {
+    summary.paragraph = normalizedParagraph;
   }
 
   const blankMatches = summary.paragraph.match(/\[BLANK\]/g) || [];

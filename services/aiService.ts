@@ -403,6 +403,7 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
 
     Part 1 (IELTS Summary): A paragraph with exactly 5 [BLANK] tokens.
     - ${profile.summary.guidance}
+    - Use the exact token [BLANK] five times. Do NOT write [BLANK1], [BLANK_1], "(1)____", underscores, or numbered blank tokens.
     - Each blank answer MUST be a verbatim substring from the article (max ${profile.summary.maxBlankWords} word${profile.summary.maxBlankWords > 1 ? 's' : ''}).
     - Verify: open the article, search for each blank answer. It must be there word-for-word.
     - Do NOT use synonyms, derived forms, or paraphrased phrases.
@@ -498,6 +499,7 @@ function buildPrompt(article: string, difficulty: Difficulty): string {
     ├──────────────────────────┼────────────────────────────────────────────┤
     │ "Too Broad"              │ Statement overstates/extrapolates passage  │
     │ "Too Narrow"             │ True detail presented as the main point    │
+    │ "Too Strong"             │ Claim is stronger than the passage allows  │
     │ "Partially True"         │ Mixes correct + incorrect elements         │
     │ "Wrong Scope"            │ Right topic but wrong paragraph/context    │
     │ "Unsupported Inference"  │ Plausible but lacks textual evidence       │

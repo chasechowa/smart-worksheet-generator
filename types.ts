@@ -159,6 +159,7 @@ export type CognitiveLevel = 'retrieval' | 'inference' | 'synthesis';
 export type DistractorPattern =
   | 'Too Broad'
   | 'Too Narrow'
+  | 'Too Strong'
   | 'Partially True'
   | 'Wrong Scope'
   | 'Unsupported Inference'

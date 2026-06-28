@@ -29,6 +29,16 @@ describe('validateSummary', () => {
     expect(issues.some(i => i.message.includes('does not match'))).toBe(true);
   });
 
+  it('normalizes numbered blank tokens', () => {
+    const data = createBaseData(
+      { paragraph: 'The [BLANK1] fox [BLANK2] over the dog', blanks: ['quick brown', 'jumps'] },
+      ['quick brown', 'jumps']
+    );
+    const issues = validateSummary(data, articleText);
+    expect(data.summary.paragraph).toBe('The [BLANK] fox [BLANK] over the dog');
+    expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
+  });
+
   it('auto-truncates blank exceeding 3 words', () => {
     const data = createBaseData({ paragraph: 'A [BLANK]', blanks: ['one two three four'] }, ['one two three four']);
     const issues = validateSummary(data, articleText);

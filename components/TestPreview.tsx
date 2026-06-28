@@ -78,6 +78,13 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void; label?: string;
     {label && <span className="text-sm font-medium text-gray-700">{label}</span>}
   </label>
 );
+
+const BLANK_TOKEN_RE = /\[BLANK\d*\]/gi;
+
+function splitSummaryParagraph(paragraph: string): string[] {
+  return (paragraph || '').split(BLANK_TOKEN_RE);
+}
+
 // --- The Worksheet Paper Component ---
 const WorksheetPaper: React.FC<{
   data: WorksheetData;
@@ -115,7 +122,7 @@ const WorksheetPaper: React.FC<{
             {/* Always show blanks as split text — never raw [BLANK] tokens */}
             {viewMode === 'editor' ? (
               <div className={`text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
-                {(data.summary.paragraph || "").split('[BLANK]').map((chunk, i, arr) => (
+                {splitSummaryParagraph(data.summary.paragraph || "").map((chunk, i, arr) => (
                   <React.Fragment key={i}>
                     <span className="text-[11pt]">{chunk}</span>
                     {i < arr.length - 1 && (
@@ -136,7 +143,7 @@ const WorksheetPaper: React.FC<{
               </div>
             ) : (
               <div className={`text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
-                {(data.summary.paragraph || "").split('[BLANK]').map((chunk, i, arr) => (
+                {splitSummaryParagraph(data.summary.paragraph || "").map((chunk, i, arr) => (
                   <React.Fragment key={i}>
                     {chunk}
                     {i < arr.length - 1 && (
@@ -148,8 +155,7 @@ const WorksheetPaper: React.FC<{
                           placeholder={`(${i + 1})`}
                         />
                       ) : (
-                        <span className="mx-1 font-bold whitespace-nowrap">
-                           _______({i + 1})_______
+                        <span className="summary-blank mx-1 font-bold whitespace-nowrap" data-index={i + 1}>
                         </span>
                       )
                     )}
@@ -536,8 +542,8 @@ const WorksheetPaper: React.FC<{
   return (
     <div className={`paper mx-auto bg-white p-8 md:p-12 shadow-sm ${viewMode === 'editor' ? 'min-h-[29.7cm]' : ''} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : 'max-w-[210mm]'}`}>
       {/* Header */}
-      <div className="mb-8 border-b-2 border-gray-800 pb-5">
-          <h1 className="text-3xl font-black uppercase tracking-widest text-gray-900 mb-6 text-center">
+      <div className="worksheet-header mb-8 border-b-2 border-gray-800 pb-5">
+          <h1 className="worksheet-title text-3xl font-black uppercase tracking-widest text-gray-900 mb-6 text-center">
             <PrintableField
                 value={data.title}
                 onChange={(e) => update('title', e.target.value)}
@@ -547,21 +553,21 @@ const WorksheetPaper: React.FC<{
              />
           </h1>
 
-          <div className="grid grid-cols-3 gap-6 text-sm font-bold text-gray-600 uppercase tracking-wider items-end">
-              <div className="flex items-end gap-2">
+          <div className="worksheet-meta grid grid-cols-3 gap-6 text-sm font-bold text-gray-600 uppercase tracking-wider items-end">
+              <div className="worksheet-field flex items-end gap-2">
                   <span className="shrink-0">Name:</span>
-                  <span className="block flex-1 border-b-2 border-gray-300 h-5">
+                  <span className="worksheet-field-line block flex-1 border-b-2 border-gray-300 h-5">
                     {settings.teacherName ? (
                       <span className="normal-case tracking-normal text-gray-900">{settings.teacherName}</span>
                     ) : null}
                   </span>
               </div>
-              <div className="text-center">
+              <div className="worksheet-level text-center">
                   <span>Level: {settings.difficulty}</span>
               </div>
-              <div className="flex items-end gap-2">
+              <div className="worksheet-field flex items-end gap-2">
                   <span className="shrink-0">Score:</span>
-                  <span className="block flex-1 border-b-2 border-gray-300 h-5"></span>
+                  <span className="worksheet-field-line block flex-1 border-b-2 border-gray-300 h-5"></span>
               </div>
           </div>
       </div>

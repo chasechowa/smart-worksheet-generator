@@ -90,6 +90,26 @@ describe('validateMC', () => {
     });
   });
 
+  it('remaps distractor metadata when rotating options', () => {
+    const opts = ['OptA', 'OptB', 'OptC', 'OptD'];
+    const answers = ['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'D', 'D'];
+    const questions = answers.map((ans, i) => ({
+      ...makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', ans, opts),
+      distractors: {
+        A: { pattern: 'Too Broad' as const, rationale: 'A plausible but overextended reading.' },
+        B: { pattern: 'Too Narrow' as const, rationale: 'A plausible but too limited reading.' },
+        C: { pattern: 'Too Strong' as const, rationale: 'A plausible but stronger claim than supported.' },
+        D: { pattern: 'Unsupported Inference' as const, rationale: 'A plausible claim without direct support.' },
+      },
+    }));
+
+    const { fixedData } = validateMC(createMCData(questions));
+    const rotated = fixedData.multipleChoice.find(q => q.answer !== 'A');
+    expect(rotated).toBeTruthy();
+    expect(rotated?.distractors?.[rotated.answer]).toBeUndefined();
+    expect(Object.keys(rotated?.distractors || {})).not.toContain(rotated?.answer);
+  });
+
   it('detects duplicate options', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
       makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Unique', ['Same', 'Same', 'Different', 'Unique'])
