@@ -807,7 +807,8 @@ const callOpenAICompatibleJSON = async (
   modelName: string,
   apiKey: string,
   provider: AIProvider,
-  baseUrl?: string
+  baseUrl?: string,
+  maxTokensOverride?: number,
 ): Promise<any> => {
   const resolvedBase = getBaseUrl(provider, baseUrl);
   const url = resolvedBase + '/chat/completions';
@@ -816,7 +817,7 @@ const callOpenAICompatibleJSON = async (
     model: modelName,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.5,
-    max_tokens: PROVIDER_MAX_TOKENS[provider] || 8192,
+    max_tokens: maxTokensOverride || PROVIDER_MAX_TOKENS[provider] || 8192,
   };
 
   // DeepSeek V4 Flash can return "{}" under JSON mode for long structured prompts.
@@ -901,12 +902,12 @@ async function callAI(prompt: string, aiConfig: AIConfig): Promise<WorksheetData
   }
 }
 
-async function callJSON(prompt: string, aiConfig: AIConfig): Promise<any> {
+async function callJSON(prompt: string, aiConfig: AIConfig, maxTokensOverride?: number): Promise<any> {
   switch (aiConfig.provider) {
     case 'deepseek':
     case 'kimi':
     case 'custom':
-      return callOpenAICompatibleJSON(prompt, aiConfig.model, aiConfig.apiKey, aiConfig.provider, aiConfig.baseUrl);
+      return callOpenAICompatibleJSON(prompt, aiConfig.model, aiConfig.apiKey, aiConfig.provider, aiConfig.baseUrl, maxTokensOverride);
     default:
       return callAI(prompt, aiConfig);
   }
@@ -1088,9 +1089,11 @@ async function generateJSONSection(
   prompt: string,
   aiConfig: AIConfig,
   onProgress?: (message: string) => void,
+  maxTokens?: number,
+  retries = 1,
 ): Promise<any> {
   onProgress?.(label);
-  return withRetry(() => callJSON(prompt, aiConfig));
+  return withRetry(() => callJSON(prompt, aiConfig, maxTokens), retries);
 }
 
 async function runWithConcurrency<T, R>(
@@ -1131,7 +1134,7 @@ async function generateSectionedWorksheet(
   };
 
   const summaryPromise = options.summary
-    ? generateJSONSection('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark)
+    ? generateJSONSection('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark, 1800)
     : Promise.resolve({});
 
   const mcGroups = [
@@ -1147,11 +1150,12 @@ async function generateSectionedWorksheet(
   ] as const;
 
   const mcPromise = options.mc
-    ? runWithConcurrency(mcGroups, 3, async ([start, end]) => {
+    ? runWithConcurrency(mcGroups, 5, async ([start, end]) => {
         const label = start === end
           ? `Generating question ${start}`
           : `Generating questions ${start}-${end}`;
-        return generateJSONSection(label, buildMCBatchPrompt(article, difficulty, start, end), aiConfig, onProgress);
+        const maxTokens = start === 4 && end === 5 ? 3200 : 1800;
+        return generateJSONSection(label, buildMCBatchPrompt(article, difficulty, start, end), aiConfig, onProgress, maxTokens);
       }).then(parts => {
         completedTasks++;
         onProgress?.(`Questions complete (${completedTasks}/${selectedTasks.length})...`);
@@ -1160,7 +1164,7 @@ async function generateSectionedWorksheet(
     : Promise.resolve([]);
 
   const syntaxPromise = options.syntaxDeconstruction
-    ? generateJSONSection('Generating syntax section', buildSyntaxSectionPrompt(article, difficulty), aiConfig, mark)
+    ? generateJSONSection('Generating syntax section', buildSyntaxSectionPrompt(article, difficulty), aiConfig, mark, 2200)
         .then(part => {
           completedTasks++;
           onProgress?.(`Syntax complete (${completedTasks}/${selectedTasks.length})...`);
@@ -1169,7 +1173,7 @@ async function generateSectionedWorksheet(
     : Promise.resolve({});
 
   const writingPromise = selectedWriting
-    ? generateJSONSection('Generating writing section', buildWritingSectionPrompt(article, difficulty, options), aiConfig, mark)
+    ? generateJSONSection('Generating writing section', buildWritingSectionPrompt(article, difficulty, options), aiConfig, mark, 3200)
         .then(part => {
           completedTasks++;
           onProgress?.(`Writing complete (${completedTasks}/${selectedTasks.length})...`);
