@@ -1003,6 +1003,55 @@ JSON schema:
 `;
 }
 
+function buildFastMCPrompt(article: string, difficulty: Difficulty): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+${buildSectionPromptHeader(article, difficulty, 'Logical analysis multiple-choice section')}
+
+Generate the complete Logical Analysis section in ONE compact JSON response.
+
+Required output:
+- exactly 10 questions, ids q1 through q10.
+- each question has exactly four raw option texts, no A/B/C/D prefixes.
+- answer is one letter: A, B, C, or D.
+- include type, cognitiveLevel, question, options, answer, explanation.
+- include concise distractors for wrong options when possible, but keep them short.
+
+Slot blueprint:
+${buildLevelMCBlueprint(difficulty)}
+
+Fast quality rules:
+- ${profile.mcQuestions.guidance}
+- Prefer inferential stems over "According to..." retrieval stems.
+- Keep each stem under 24 words and each option under 22 words when possible.
+- Explanations: max 18 words.
+- Distractor rationales: max 10 words.
+- For C1, include evidence only as short paragraph labels, e.g. ["Para2", "Para8"].
+- Do not generate syntax, summary, writing tasks, answer key prose, markdown, or HTML.
+
+JSON schema:
+{
+  "multipleChoice": [
+    {
+      "id": "q1",
+      "type": "Main Idea",
+      "cognitiveLevel": "inference",
+      "question": "...",
+      "options": ["...", "...", "...", "..."],
+      "answer": "B",
+      "explanation": "...",
+      "distractors": {
+        "A": { "pattern": "Too Narrow", "rationale": "..." },
+        "C": { "pattern": "Wrong Scope", "rationale": "..." },
+        "D": { "pattern": "Unsupported Inference", "rationale": "..." }
+      },
+      "evidence": ["Para1", "Para8"]
+    }
+  ]
+}
+`;
+}
+
 function buildSyntaxSectionPrompt(article: string, difficulty: Difficulty): string {
   const profile = getDifficultyProfile(difficulty);
   return `
@@ -1131,31 +1180,14 @@ async function generateSectionedWorksheet(
     ? generateJSONSection('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark, 1800)
     : Promise.resolve({});
 
-  const mcGroups = [
-    [1, 1],
-    [2, 2],
-    [3, 3],
-    [4, 5],
-    [6, 6],
-    [7, 7],
-    [8, 8],
-    [9, 9],
-    [10, 10],
-  ] as const;
-
   const mcPromise = options.mc
-    ? runWithConcurrency(mcGroups, 5, async ([start, end]) => {
-        const label = start === end
-          ? `Generating question ${start}`
-          : `Generating questions ${start}-${end}`;
-        const maxTokens = start === 4 && end === 5 ? 3200 : 1800;
-        return generateJSONSection(label, buildMCBatchPrompt(article, difficulty, start, end), aiConfig, onProgress, maxTokens);
-      }).then(parts => {
+    ? generateJSONSection('Generating logical analysis', buildFastMCPrompt(article, difficulty), aiConfig, mark, 5200)
+      .then(part => {
         completedTasks++;
         onProgress?.(`Questions complete (${completedTasks}/${selectedTasks.length})...`);
-        return parts;
+        return part;
       })
-    : Promise.resolve([]);
+    : Promise.resolve({});
 
   const syntaxPromise = options.syntaxDeconstruction
     ? generateJSONSection('Generating syntax section', buildSyntaxSectionPrompt(article, difficulty), aiConfig, mark, 2200)
@@ -1187,7 +1219,7 @@ async function generateSectionedWorksheet(
   onProgress?.('Assembling worksheet...');
 
   const multipleChoice = [
-    ...mcParts.flatMap((part: any, index: number) => ensureArray(part.multipleChoice, `multipleChoice group ${index + 1}`)),
+    ...ensureArray(mcParts.multipleChoice, 'multipleChoice'),
   ].sort((a, b) => {
     const aNum = Number(String(a.id || '').replace(/\D/g, '')) || 0;
     const bNum = Number(String(b.id || '').replace(/\D/g, '')) || 0;

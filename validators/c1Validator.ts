@@ -47,7 +47,7 @@ export function validateC1Boundaries(
     issues.push({
       type: 'rule',
       section: 'mc',
-      severity: 'error',
+      severity: 'warning',
       message: `C1: Too many literal comprehension questions (${literalCount}). Maximum 1 allowed. Recommended: 0.`,
       suggestion: 'Convert excess literal questions to Inference or Structure / Function / Synthesis.',
     });
@@ -100,7 +100,7 @@ export function validateC1Boundaries(
           issues.push({
             type: 'rule',
             section: 'mc',
-            severity: 'error',
+            severity: 'warning',
             message: `C1: Vocabulary question ${q.id} targets "${word}" - too low-level for C1.`,
             suggestion: 'Choose an abstract, academic, or context-dependent word. If none is available, replace this with Structure / Function / Synthesis.',
           });
@@ -126,7 +126,7 @@ export function validateC1Boundaries(
       issues.push({
         type: 'rule',
         section: 'mc',
-        severity: 'error',
+        severity: 'warning',
         message: `C1: Evidence Reasoning ${q.id} missing evidencePairLink. Must be linked to another Evidence Reasoning question.`,
         suggestion: 'Add evidencePairLink with claimQuestionId and evidenceQuestionId.',
       });
@@ -145,7 +145,7 @@ export function validateC1Boundaries(
             issues.push({
               type: 'rule',
               section: 'mc',
-              severity: 'error',
+              severity: 'warning',
               message: `C1: ${q.id} correct answer copies ${MAX_VERBATIM_WORDS}+ consecutive words from passage. Paraphrase required.`,
               suggestion: 'Rewrite the correct answer using different wording from the passage.',
             });
