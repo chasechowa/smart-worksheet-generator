@@ -59,7 +59,7 @@ export function validateC1Boundaries(
         issues.push({
           type: 'rule',
           section: 'mc',
-          severity: 'error',
+          severity: 'warning',
           message: `C1: Question ${q.id} has a weak stem opener: "${q.question.slice(0, 60)}..."`,
           suggestion: 'Rewrite using analytical or inferential phrasing. Avoid "According to...", "What role does...", "When did...", etc.',
         });

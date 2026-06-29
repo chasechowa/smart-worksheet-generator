@@ -977,6 +977,7 @@ Quality rules:
 - distractors must include metadata for wrong options only.
 - Allowed distractor patterns: Too Broad, Too Narrow, Too Strong, Partially True, Wrong Scope, Unsupported Inference, Reversed Logic.
 - For C1 Inference and Structure / Function / Synthesis questions, include evidence[] with at least 2 references and reasoningSteps[] with at least 2 steps.
+- For C1 Vocabulary in Context, do not use the stem "In paragraph X, the word...". Use an analytical stem such as "The author's use of 'X' primarily frames..." or "Within the argument, 'X' most nearly conveys...".
 - For Evidence Reasoning pairs, include matching evidencePairLink fields.
 - For evidence quote questions, options should be short verbatim quotations from the article.
 

@@ -97,6 +97,18 @@ function hasWorksheetContent(worksheet: WorksheetData): boolean {
   );
 }
 
+function hasRenderableWorksheetSections(worksheet: WorksheetData): boolean {
+  return Boolean(
+    worksheet.summary?.paragraph?.trim() &&
+    worksheet.multipleChoice?.length > 0 &&
+    worksheet.syntaxDeconstruction?.length > 0 &&
+    worksheet.writingWorkshop?.expansion?.length > 0 &&
+    worksheet.writingWorkshop?.keywords?.length > 0 &&
+    worksheet.writingWorkshop?.qaChain?.length > 0 &&
+    worksheet.writingWorkshop?.criticalThinking?.trim()
+  );
+}
+
 // --- Styles for Exported HTML ---
 const BASE_STYLES = `
   body {
@@ -455,15 +467,14 @@ export default function App() {
         }
       }
 
-      // Show validation panel only for hard errors
-      if (errors.length > 0) {
+      if (!hasRenderableWorksheetSections(finalData)) {
         setValidationResult({ ...validation, data: finalData });
-        setError('Generation returned an invalid worksheet. Please retry. The request is now split by section to reduce token truncation.');
+        setError('Generation returned an incomplete worksheet with missing sections. Please retry.');
         return;
       }
 
       setData(finalData);
-      setValidationResult(null);
+      setValidationResult(validation.issues.length > 0 ? { ...validation, data: finalData } : null);
 
       // Create or update project
       if (!currentProject) {
@@ -501,8 +512,8 @@ export default function App() {
       const validation = validateWorksheet(normalizedRawData, article, settings.difficulty);
       setValidationResult(validation);
       const errors = validation.issues.filter(i => i.severity === 'error');
-      if (errors.length > 0) {
-        setError('Regeneration returned an invalid worksheet. Please retry. The request is now split by section to reduce token truncation.');
+      if (!hasRenderableWorksheetSections(validation.data)) {
+        setError('Regeneration returned an incomplete worksheet with missing sections. Please retry.');
         return;
       }
       setData(validation.data);
