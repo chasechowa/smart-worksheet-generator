@@ -980,6 +980,8 @@ Quality rules:
 - For C1 Vocabulary in Context, do not use the stem "In paragraph X, the word...". Use an analytical stem such as "The author's use of 'X' primarily frames..." or "Within the argument, 'X' most nearly conveys...".
 - For Evidence Reasoning pairs, include matching evidencePairLink fields.
 - For evidence quote questions, options should be short verbatim quotations from the article.
+- Keep explanations and distractor rationales concise: 1 sentence each.
+- Keep evidence references short: paragraph/sentence labels or short quoted fragments, not long copied passages.
 
 JSON schema:
 {
@@ -1098,29 +1100,41 @@ async function generateSectionedWorksheet(
     onProgress,
   );
 
-  const mcFirst = await generateJSONSection(
-    'Generating questions 1-5 (2/5)...',
-    buildMCBatchPrompt(article, difficulty, 1, 5),
-    aiConfig,
-    onProgress,
-  );
+  const mcGroups = [
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 5],
+    [6, 6],
+    [7, 7],
+    [8, 8],
+    [9, 9],
+    [10, 10],
+  ] as const;
 
-  const mcSecond = await generateJSONSection(
-    'Generating questions 6-10 (3/5)...',
-    buildMCBatchPrompt(article, difficulty, 6, 10),
-    aiConfig,
-    onProgress,
-  );
+  const mcParts = [];
+  for (let i = 0; i < mcGroups.length; i++) {
+    const [start, end] = mcGroups[i];
+    const label = start === end
+      ? `Generating question ${start} (${i + 2}/12)...`
+      : `Generating questions ${start}-${end} (${i + 2}/12)...`;
+    mcParts.push(await generateJSONSection(
+      label,
+      buildMCBatchPrompt(article, difficulty, start, end),
+      aiConfig,
+      onProgress,
+    ));
+  }
 
   const syntaxPart = await generateJSONSection(
-    'Generating syntax section (4/5)...',
+    'Generating syntax section (11/12)...',
     buildSyntaxSectionPrompt(article, difficulty),
     aiConfig,
     onProgress,
   );
 
   const writingPart = await generateJSONSection(
-    'Generating writing section (5/5)...',
+    'Generating writing section (12/12)...',
     buildWritingSectionPrompt(article, difficulty),
     aiConfig,
     onProgress,
@@ -1129,8 +1143,7 @@ async function generateSectionedWorksheet(
   onProgress?.('Assembling worksheet...');
 
   const multipleChoice = [
-    ...ensureArray(mcFirst.multipleChoice, 'multipleChoice q1-q5'),
-    ...ensureArray(mcSecond.multipleChoice, 'multipleChoice q6-q10'),
+    ...mcParts.flatMap((part, index) => ensureArray(part.multipleChoice, `multipleChoice group ${index + 1}`)),
   ].sort((a, b) => {
     const aNum = Number(String(a.id || '').replace(/\D/g, '')) || 0;
     const bNum = Number(String(b.id || '').replace(/\D/g, '')) || 0;
