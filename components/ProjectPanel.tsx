@@ -17,7 +17,7 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({ currentProject, onLo
     setProjects(list);
   };
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, [currentProject?.id, currentProject?.updatedAt]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this project?')) return;

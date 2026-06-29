@@ -1,4 +1,4 @@
-import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport } from "../types";
+import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions } from "../types";
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 
@@ -1032,19 +1032,25 @@ JSON schema:
 `;
 }
 
-function buildWritingSectionPrompt(article: string, difficulty: Difficulty): string {
+function buildWritingSectionPrompt(article: string, difficulty: Difficulty, options: GenerationOptions): string {
   const profile = getDifficultyProfile(difficulty);
+  const requested = [
+    options.writing_expansion ? 'sentence expansion' : null,
+    options.writing_keywords ? 'keyword paragraph' : null,
+    options.writing_qa ? 'Q&A chain' : null,
+    options.writing_critical ? 'critical perspective' : null,
+  ].filter(Boolean).join(', ');
   return `
 ${buildSectionPromptHeader(article, difficulty, 'Writing and logic workshop')}
 
-Create:
-1. expansion: EXACTLY 4 items. Each fact must be based on the article. Give 2-3 level-appropriate conjunctions and a sampleAnswer.
-2. keywords: EXACTLY 5 core words or short phrases that appear verbatim in the article.
-3. qaChain: EXACTLY 4 open-ended questions at ${profile.writing.qaComplexity} level.
-4. criticalThinking: ONE ${profile.writing.criticalThinkingType} prompt.
-5. keys.expansion: model answers for the 4 expansion items.
-6. keys.qa: concise model answers for the 4 Q&A questions.
-7. keys.critical: key guidance points for the criticalThinking prompt.
+Create ONLY these writing parts: ${requested}.
+Do not spend output tokens on unrequested writing parts; return empty arrays/strings for them.
+
+Requested part rules:
+${options.writing_expansion ? '- expansion: EXACTLY 4 items. Each fact must be based on the article. Give 2-3 level-appropriate conjunctions and a sampleAnswer. Also return keys.expansion.' : '- expansion: return [] and keys.expansion: [].'}
+${options.writing_keywords ? '- keywords: EXACTLY 5 core words or short phrases that appear verbatim in the article.' : '- keywords: return [].'}
+${options.writing_qa ? `- qaChain: EXACTLY 4 open-ended questions at ${profile.writing.qaComplexity} level. Also return keys.qa.` : '- qaChain: return [] and keys.qa: [].'}
+${options.writing_critical ? `- criticalThinking: ONE ${profile.writing.criticalThinkingType} prompt. Also return keys.critical.` : '- criticalThinking: return "" and keys.critical: "".'}
 
 Writing guidance:
 - ${profile.writing.guidance}
@@ -1087,18 +1093,46 @@ async function generateJSONSection(
   return withRetry(() => callJSON(prompt, aiConfig));
 }
 
+async function runWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = [];
+  let nextIndex = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await worker(items[current], current);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 async function generateSectionedWorksheet(
   article: string,
   difficulty: Difficulty,
   aiConfig: AIConfig,
   onProgress?: (message: string) => void,
+  generationOptions: GenerationOptions = DEFAULT_GENERATION_OPTIONS,
 ): Promise<WorksheetData> {
-  const summaryPart = await generateJSONSection(
-    'Generating summary (1/5)...',
-    buildSummarySectionPrompt(article, difficulty),
-    aiConfig,
-    onProgress,
-  );
+  const options = { ...DEFAULT_GENERATION_OPTIONS, ...generationOptions };
+  const selectedWriting = options.writing_expansion || options.writing_keywords || options.writing_qa || options.writing_critical;
+  const selectedTasks = [
+    options.summary ? 'summary' : null,
+    options.mc ? 'questions' : null,
+    options.syntaxDeconstruction ? 'syntax' : null,
+    selectedWriting ? 'writing' : null,
+  ].filter(Boolean);
+  let completedTasks = 0;
+  const mark = (label: string) => {
+    onProgress?.(`${label} (${Math.min(completedTasks + 1, selectedTasks.length)}/${selectedTasks.length})...`);
+  };
+
+  const summaryPromise = options.summary
+    ? generateJSONSection('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark)
+    : Promise.resolve({});
 
   const mcGroups = [
     [1, 1],
@@ -1112,48 +1146,68 @@ async function generateSectionedWorksheet(
     [10, 10],
   ] as const;
 
-  const mcParts = [];
-  for (let i = 0; i < mcGroups.length; i++) {
-    const [start, end] = mcGroups[i];
-    const label = start === end
-      ? `Generating question ${start} (${i + 2}/12)...`
-      : `Generating questions ${start}-${end} (${i + 2}/12)...`;
-    mcParts.push(await generateJSONSection(
-      label,
-      buildMCBatchPrompt(article, difficulty, start, end),
-      aiConfig,
-      onProgress,
-    ));
-  }
+  const mcPromise = options.mc
+    ? runWithConcurrency(mcGroups, 3, async ([start, end]) => {
+        const label = start === end
+          ? `Generating question ${start}`
+          : `Generating questions ${start}-${end}`;
+        return generateJSONSection(label, buildMCBatchPrompt(article, difficulty, start, end), aiConfig, onProgress);
+      }).then(parts => {
+        completedTasks++;
+        onProgress?.(`Questions complete (${completedTasks}/${selectedTasks.length})...`);
+        return parts;
+      })
+    : Promise.resolve([]);
 
-  const syntaxPart = await generateJSONSection(
-    'Generating syntax section (11/12)...',
-    buildSyntaxSectionPrompt(article, difficulty),
-    aiConfig,
-    onProgress,
-  );
+  const syntaxPromise = options.syntaxDeconstruction
+    ? generateJSONSection('Generating syntax section', buildSyntaxSectionPrompt(article, difficulty), aiConfig, mark)
+        .then(part => {
+          completedTasks++;
+          onProgress?.(`Syntax complete (${completedTasks}/${selectedTasks.length})...`);
+          return part;
+        })
+    : Promise.resolve({});
 
-  const writingPart = await generateJSONSection(
-    'Generating writing section (12/12)...',
-    buildWritingSectionPrompt(article, difficulty),
-    aiConfig,
-    onProgress,
-  );
+  const writingPromise = selectedWriting
+    ? generateJSONSection('Generating writing section', buildWritingSectionPrompt(article, difficulty, options), aiConfig, mark)
+        .then(part => {
+          completedTasks++;
+          onProgress?.(`Writing complete (${completedTasks}/${selectedTasks.length})...`);
+          return part;
+        })
+    : Promise.resolve({});
+
+  const summaryPart = await summaryPromise.then(part => {
+    if (options.summary) {
+      completedTasks++;
+      onProgress?.(`Summary complete (${completedTasks}/${selectedTasks.length})...`);
+    }
+    return part;
+  });
+  const [mcParts, syntaxPart, writingPart] = await Promise.all([mcPromise, syntaxPromise, writingPromise]);
 
   onProgress?.('Assembling worksheet...');
 
   const multipleChoice = [
-    ...mcParts.flatMap((part, index) => ensureArray(part.multipleChoice, `multipleChoice group ${index + 1}`)),
+    ...mcParts.flatMap((part: any, index: number) => ensureArray(part.multipleChoice, `multipleChoice group ${index + 1}`)),
   ].sort((a, b) => {
     const aNum = Number(String(a.id || '').replace(/\D/g, '')) || 0;
     const bNum = Number(String(b.id || '').replace(/\D/g, '')) || 0;
     return aNum - bNum;
   });
 
-  const syntaxDeconstruction = ensureArray(syntaxPart.syntaxDeconstruction, 'syntaxDeconstruction');
-  const expansion = ensureArray(writingPart.writingWorkshop?.expansion, 'writingWorkshop.expansion');
-  const keywords = ensureArray(writingPart.writingWorkshop?.keywords, 'writingWorkshop.keywords');
-  const qaChain = ensureArray(writingPart.writingWorkshop?.qaChain, 'writingWorkshop.qaChain');
+  const syntaxDeconstruction = options.syntaxDeconstruction
+    ? ensureArray(syntaxPart.syntaxDeconstruction, 'syntaxDeconstruction')
+    : [];
+  const expansion = options.writing_expansion
+    ? ensureArray(writingPart.writingWorkshop?.expansion, 'writingWorkshop.expansion')
+    : [];
+  const keywords = options.writing_keywords
+    ? ensureArray(writingPart.writingWorkshop?.keywords, 'writingWorkshop.keywords')
+    : [];
+  const qaChain = options.writing_qa
+    ? ensureArray(writingPart.writingWorkshop?.qaChain, 'writingWorkshop.qaChain')
+    : [];
 
   return {
     title: summaryPart.title || 'Untitled Worksheet',
@@ -1173,7 +1227,7 @@ async function generateSectionedWorksheet(
       expansion,
       keywords,
       qaChain,
-      criticalThinking: writingPart.writingWorkshop?.criticalThinking || '',
+      criticalThinking: options.writing_critical ? (writingPart.writingWorkshop?.criticalThinking || '') : '',
     },
     keys: {
       summary: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
@@ -1186,7 +1240,7 @@ async function generateSectionedWorksheet(
         ? writingPart.keys.expansion
         : expansion.map((item: any) => item.sampleAnswer || ''),
       qa: Array.isArray(writingPart.keys?.qa) ? writingPart.keys.qa : [],
-      critical: writingPart.keys?.critical || '',
+      critical: options.writing_critical ? (writingPart.keys?.critical || '') : '',
     },
   };
 }
@@ -1194,6 +1248,16 @@ async function generateSectionedWorksheet(
 // ==================== Refinement (self-correction) ====================
 
 const MAX_REFINEMENT_ROUNDS = 0; // No API refinement — rely on prompt quality + mechanical auto-fixes
+
+const DEFAULT_GENERATION_OPTIONS: GenerationOptions = {
+  summary: true,
+  mc: true,
+  syntaxDeconstruction: true,
+  writing_expansion: true,
+  writing_keywords: true,
+  writing_qa: true,
+  writing_critical: true,
+};
 
 // ---------------------------------------------------------------------------
 // Issue classification
@@ -1485,6 +1549,7 @@ export async function generateAndRefine(
   difficulty: Difficulty,
   onRound?: (round: number, data: WorksheetData, report: RefinementReport) => void,
   onProgress?: (message: string) => void,
+  generationOptions: GenerationOptions = DEFAULT_GENERATION_OPTIONS,
 ): Promise<{ data: WorksheetData; rounds: number; reports: RefinementReport[] }> {
   const aiConfig = getActiveConfig();
   if (!aiConfig || !aiConfig.apiKey) {
@@ -1495,7 +1560,7 @@ export async function generateAndRefine(
 
   // --- Initial generation ---
   let data = aiConfig.provider === 'deepseek'
-    ? await generateSectionedWorksheet(article, difficulty, aiConfig, onProgress)
+    ? await generateSectionedWorksheet(article, difficulty, aiConfig, onProgress, generationOptions)
     : await withRetry(() => callAI(buildPrompt(article, difficulty), aiConfig));
   let rounds = 0;
 

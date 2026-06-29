@@ -133,6 +133,16 @@ export interface AIConfig {
   enabled: boolean;
 }
 
+export interface GenerationOptions {
+  summary: boolean;
+  mc: boolean;
+  syntaxDeconstruction: boolean;
+  writing_expansion: boolean;
+  writing_keywords: boolean;
+  writing_qa: boolean;
+  writing_critical: boolean;
+}
+
 export interface ProviderConfigs {
   activeProvider: AIProvider;
   providers: Record<AIProvider, AIConfig>;

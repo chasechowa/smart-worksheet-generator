@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { WorksheetData, AppSettings, Difficulty, Project, ValidationResult } from './types';
+import type { WorksheetData, AppSettings, Difficulty, Project, ValidationResult, GenerationOptions, ValidationIssue } from './types';
 import { generateAndRefine } from './services/aiService';
 import { validateWorksheet } from './services/validatorService';
 import { createProject, saveProject, getProjects, getProject } from './services/storageService';
@@ -12,6 +12,16 @@ import { ProjectPanel } from './components/ProjectPanel';
 import { ValidationPanel } from './components/ValidationPanel';
 
 type ViewMode = 'editor' | 'print-std' | 'print-compact' | 'interactive' | 'pdf';
+
+const DEFAULT_GENERATION_OPTIONS: GenerationOptions = {
+  summary: true,
+  mc: true,
+  syntaxDeconstruction: true,
+  writing_expansion: true,
+  writing_keywords: true,
+  writing_qa: true,
+  writing_critical: true,
+};
 
 function normalizeSummaryParagraph(paragraph: string): string {
   return (paragraph || '').replace(/\[BLANK\d+\]/gi, '[BLANK]');
@@ -107,6 +117,75 @@ function hasRenderableWorksheetSections(worksheet: WorksheetData): boolean {
     worksheet.writingWorkshop?.qaChain?.length > 0 &&
     worksheet.writingWorkshop?.criticalThinking?.trim()
   );
+}
+
+function hasAnyGeneratedSection(options: GenerationOptions): boolean {
+  return Object.values(options).some(Boolean);
+}
+
+function hasWritingSection(options: GenerationOptions): boolean {
+  return options.writing_expansion || options.writing_keywords || options.writing_qa || options.writing_critical;
+}
+
+function getVisibleSectionsForGeneration(options: GenerationOptions): Set<string> {
+  const next = new Set<string>();
+  if (options.summary) next.add('summary');
+  if (options.mc) next.add('mc');
+  if (options.syntaxDeconstruction) next.add('syntaxDeconstruction');
+  if (hasWritingSection(options)) next.add('writing');
+  if (options.writing_expansion) next.add('writing_expansion');
+  if (options.writing_keywords) next.add('writing_keywords');
+  if (options.writing_qa) next.add('writing_qa');
+  if (options.writing_critical) next.add('writing_critical');
+  if (next.size > 0) next.add('keys');
+  return next;
+}
+
+function hasRenderableGeneratedSections(worksheet: WorksheetData, options: GenerationOptions): boolean {
+  if (options.summary && !worksheet.summary?.paragraph?.trim()) return false;
+  if (options.mc && worksheet.multipleChoice?.length === 0) return false;
+  if (options.syntaxDeconstruction && worksheet.syntaxDeconstruction?.length === 0) return false;
+  if (options.writing_expansion && worksheet.writingWorkshop?.expansion?.length === 0) return false;
+  if (options.writing_keywords && worksheet.writingWorkshop?.keywords?.length === 0) return false;
+  if (options.writing_qa && worksheet.writingWorkshop?.qaChain?.length === 0) return false;
+  if (options.writing_critical && !worksheet.writingWorkshop?.criticalThinking?.trim()) return false;
+  return true;
+}
+
+function shouldKeepValidationIssue(issue: ValidationIssue, options: GenerationOptions): boolean {
+  if (issue.section === 'global') return true;
+  if (issue.section === 'summary') return options.summary;
+  if (issue.section === 'mc') return options.mc;
+  if (issue.section === 'syntax') return options.syntaxDeconstruction;
+  if (issue.section === 'writing') {
+    if (/expansion|sentence expansion/i.test(issue.message)) return options.writing_expansion;
+    if (/keyword/i.test(issue.message)) return options.writing_keywords;
+    if (/q&a|qa chain/i.test(issue.message)) return options.writing_qa;
+    if (/critical/i.test(issue.message)) return options.writing_critical;
+    return hasWritingSection(options);
+  }
+  if (issue.section === 'keys') return true;
+  return true;
+}
+
+function scopeValidationResult(validation: ValidationResult, options: GenerationOptions): ValidationResult {
+  const issues = validation.issues.filter(issue => shouldKeepValidationIssue(issue, options));
+  const errors = issues.filter(issue => issue.severity === 'error');
+  return {
+    ...validation,
+    valid: errors.length === 0,
+    issues,
+    data: {
+      ...validation.data,
+      _meta: validation.data._meta
+        ? {
+            ...validation.data._meta,
+            validated: errors.length === 0,
+            validationIssues: issues.map(i => `[${i.severity.toUpperCase()}] ${i.section}: ${i.message}`),
+          }
+        : validation.data._meta,
+    },
+  };
 }
 
 // --- Styles for Exported HTML ---
@@ -364,10 +443,24 @@ export default function App() {
       'writing_critical',
       'keys'
   ]));
+  const [generationOptions, setGenerationOptions] = useState<GenerationOptions>(DEFAULT_GENERATION_OPTIONS);
 
   // Project state
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+
+  useEffect(() => {
+    getProjects()
+      .then(async list => {
+        if (article.trim() || list.length === 0) return;
+        const latest = await getProject(list[0].id);
+        const normalized = normalizeProject(latest);
+        setCurrentProject(normalized);
+        setArticle(normalized.articleText || '');
+        setSettings(prev => ({ ...prev, difficulty: normalized.difficulty }));
+      })
+      .catch(() => {});
+  }, []);
 
   // Auto-save project when data changes
   useEffect(() => {
@@ -409,6 +502,10 @@ export default function App() {
 
   const handleGenerate = async () => {
     if (!article.trim()) return;
+    if (!hasAnyGeneratedSection(generationOptions)) {
+      setError('Select at least one worksheet section to generate.');
+      return;
+    }
 
     const wordCount = article.trim().split(/\s+/).length;
     if (wordCount > 3000) {
@@ -438,13 +535,17 @@ export default function App() {
           setLoadingMessage(`Refining (round ${round}) — fixed ${report.fixedIssues.length}, ${report.remainingIssues.length} remaining...`);
         },
         message => setLoadingMessage(message),
+        generationOptions,
       );
 
       // Run generated data through the same safety normalizer used for saved projects.
       // Faster models can occasionally omit nested arrays; validation should report that,
       // not let preview rendering crash the page.
       const normalizedRawData = normalizeWorksheetData(rawData);
-      const validation = validateWorksheet(normalizedRawData, article, settings.difficulty);
+      const validation = scopeValidationResult(
+        validateWorksheet(normalizedRawData, article, settings.difficulty),
+        generationOptions,
+      );
       const errors = validation.issues.filter(i => i.severity === 'error');
       const warnings = validation.issues.filter(i => i.severity === 'warning');
       const finalData = validation.data;
@@ -467,12 +568,13 @@ export default function App() {
         }
       }
 
-      if (!hasRenderableWorksheetSections(finalData)) {
+      if (!hasRenderableGeneratedSections(finalData, generationOptions)) {
         setValidationResult({ ...validation, data: finalData });
         setError('Generation returned an incomplete worksheet with missing sections. Please retry.');
         return;
       }
 
+      setVisibleSections(getVisibleSectionsForGeneration(generationOptions));
       setData(finalData);
       setValidationResult(validation.issues.length > 0 ? { ...validation, data: finalData } : null);
 
@@ -507,15 +609,20 @@ export default function App() {
           setLoadingMessage(`Refining (round ${round}) — ${report.fixedIssues.length} fixed, ${report.remainingIssues.length} remaining...`);
         },
         message => setLoadingMessage(message),
+        generationOptions,
       );
       const normalizedRawData = normalizeWorksheetData(rawData);
-      const validation = validateWorksheet(normalizedRawData, article, settings.difficulty);
+      const validation = scopeValidationResult(
+        validateWorksheet(normalizedRawData, article, settings.difficulty),
+        generationOptions,
+      );
       setValidationResult(validation);
       const errors = validation.issues.filter(i => i.severity === 'error');
-      if (!hasRenderableWorksheetSections(validation.data)) {
+      if (!hasRenderableGeneratedSections(validation.data, generationOptions)) {
         setError('Regeneration returned an incomplete worksheet with missing sections. Please retry.');
         return;
       }
+      setVisibleSections(getVisibleSectionsForGeneration(generationOptions));
       setData(validation.data);
     } catch (err: any) {
       setError(err.message || 'Failed to regenerate');
@@ -575,6 +682,29 @@ export default function App() {
     setCurrentProject(updated);
   };
 
+  const handleSaveArticle = async () => {
+    if (!article.trim()) return;
+    const titleSeed = article.trim().split(/\n+/)[0].replace(/\s+/g, ' ').slice(0, 80);
+    const project = currentProject
+      ? {
+          ...currentProject,
+          title: currentProject.title || titleSeed || 'Saved Article',
+          articleText: article,
+          difficulty: settings.difficulty,
+          updatedAt: Date.now(),
+        }
+      : createProject(titleSeed || 'Saved Article', article, settings.difficulty);
+
+    await saveProject(project);
+    setCurrentProject(project);
+    setError(null);
+    setRefinementSummary('Article saved locally. It will auto-load next time.');
+  };
+
+  const setGenerationOption = (key: keyof GenerationOptions, value: boolean) => {
+    setGenerationOptions(prev => ({ ...prev, [key]: value }));
+  };
+
   const toggleSection = (id: string) => {
     const next = new Set(visibleSections);
     if (next.has(id)) next.delete(id);
@@ -602,6 +732,62 @@ export default function App() {
         default: return id;
     }
   };
+
+  const renderGenerateCheckbox = (key: keyof GenerationOptions, label: string, description?: string) => (
+    <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors cursor-pointer">
+      <input
+        type="checkbox"
+        checked={generationOptions[key]}
+        onChange={e => setGenerationOption(key, e.target.checked)}
+        className="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+      />
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-gray-800">{label}</span>
+        {description && <span className="block text-[11px] leading-snug text-gray-400 mt-0.5">{description}</span>}
+      </span>
+    </label>
+  );
+
+  const renderGenerationSelector = (isCompact: boolean) => (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-3">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <label className="text-xs font-bold uppercase text-gray-400 block tracking-wide">Generate Sections</label>
+          <p className="text-[11px] text-gray-400 mt-0.5">Only checked parts call the API and appear in preview.</p>
+        </div>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setGenerationOptions(DEFAULT_GENERATION_OPTIONS)}
+            className="text-[10px] font-bold px-2 py-1 rounded bg-white border border-gray-200 text-gray-500 hover:text-indigo-600"
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setGenerationOptions({ ...DEFAULT_GENERATION_OPTIONS, writing_expansion: false, writing_keywords: false, writing_qa: false, writing_critical: false })}
+            className="text-[10px] font-bold px-2 py-1 rounded bg-white border border-gray-200 text-gray-500 hover:text-indigo-600"
+          >
+            Core
+          </button>
+        </div>
+      </div>
+      <div className={`grid gap-2 ${isCompact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
+        {renderGenerateCheckbox('summary', 'Summary Completion', '5 blanks + answer key')}
+        {renderGenerateCheckbox('mc', 'Logical Analysis', '10 MC questions, generated in parallel')}
+        {renderGenerateCheckbox('syntaxDeconstruction', 'Syntax Deconstruction', '2 grammar breakdowns')}
+      </div>
+      <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+        <div className="text-[11px] font-black uppercase tracking-wide text-gray-400 mb-2">Writing Workshop</div>
+        <div className={`grid gap-2 ${isCompact ? 'grid-cols-1' : 'md:grid-cols-2'}`}>
+          {renderGenerateCheckbox('writing_expansion', 'A. Sentence Expansion')}
+          {renderGenerateCheckbox('writing_keywords', 'B. Keyword Paragraph')}
+          {renderGenerateCheckbox('writing_qa', 'C. Q&A Chain')}
+          {renderGenerateCheckbox('writing_critical', 'D. Critical Perspective')}
+        </div>
+      </div>
+    </div>
+  );
 
   const buildExportHTML = (forPdf: boolean) => {
     if (!data) return '';
@@ -675,11 +861,24 @@ export default function App() {
       )}
 
       <div>
-        <label className="text-xs font-bold uppercase text-gray-400 block mb-2 tracking-wide">Article Text</label>
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <label className="text-xs font-bold uppercase text-gray-400 block tracking-wide">Article Text</label>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-gray-400">{article.trim() ? `${article.trim().split(/\s+/).length} words` : 'No article loaded'}</span>
+            <button
+              type="button"
+              onClick={handleSaveArticle}
+              disabled={!article.trim()}
+              className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-200 disabled:opacity-40"
+            >
+              Save Article
+            </button>
+          </div>
+        </div>
         <textarea
           value={article}
           onChange={e => setArticle(e.target.value)}
-          className={`w-full border border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-none transition-shadow bg-white/90 placeholder-gray-300 ${isCompact ? 'h-32' : 'h-[360px] xl:h-[430px]'}`}
+          className={`w-full border border-gray-200 rounded-xl p-4 text-sm leading-relaxed focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none resize-none transition-shadow bg-white/90 placeholder-gray-300 ${isCompact ? 'h-32' : 'h-[300px] xl:h-[380px]'}`}
           placeholder="Paste article content here..."
         />
       </div>
@@ -712,6 +911,8 @@ export default function App() {
         )}
       </div>
 
+      {renderGenerationSelector(isCompact)}
+
       {showConfigButton && (
         <button
           onClick={() => setShowConfig(true)}
@@ -738,7 +939,7 @@ export default function App() {
 
       <button
         onClick={handleGenerate}
-        disabled={loading || !article}
+        disabled={loading || !article || !hasAnyGeneratedSection(generationOptions)}
         className={`w-full py-3.5 rounded-xl font-bold text-white shadow-lg transition-all text-lg tracking-wide ${
           loading
             ? 'bg-gray-400 cursor-not-allowed'
@@ -833,7 +1034,7 @@ export default function App() {
         // === SPLIT SIDEBAR LAYOUT (after generation) ===
         <>
           {/* Sidebar */}
-          <div className="fixed top-0 left-0 h-full w-80 bg-white border-r shadow-lg p-6 overflow-y-auto hidden lg:block no-print z-50">
+          <div className="fixed top-0 left-0 h-full w-[420px] bg-white border-r shadow-lg p-5 overflow-y-auto hidden lg:block no-print z-50">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h1 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 uppercase tracking-wider">Smart Worksheet</h1>
@@ -946,7 +1147,7 @@ export default function App() {
           </div>
 
           {/* Main Area */}
-          <div className="lg:ml-80 min-h-screen">
+          <div className="lg:ml-[420px] min-h-screen">
              {/* Mobile Nav */}
              <div className="lg:hidden bg-white/90 backdrop-blur-sm shadow-sm border-b border-gray-100 p-4 flex justify-between items-center no-print sticky top-0 z-40">
                 <div>

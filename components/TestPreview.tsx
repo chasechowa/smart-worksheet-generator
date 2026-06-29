@@ -202,7 +202,7 @@ const WorksheetPaper: React.FC<{
                       viewMode={viewMode}
                     />
                   </div>
-                  <div className={`grid grid-cols-1 md:grid-cols-2 ml-10 ${isCompact ? 'gap-x-4 gap-y-0' : 'gap-x-8 gap-y-1'}`}>
+                  <div className={`grid grid-cols-1 ${viewMode === 'editor' ? '' : 'md:grid-cols-2'} ml-10 ${isCompact ? 'gap-x-4 gap-y-0' : 'gap-x-8 gap-y-1'}`}>
                     {q.options.map((opt, oIdx) => {
                        const letter = String.fromCharCode(65 + oIdx);
                        const isCorrect = letter === data.keys.mc[q.id];
@@ -554,7 +554,7 @@ const WorksheetPaper: React.FC<{
   }
 
   return (
-    <div className={`paper mx-auto bg-white p-8 md:p-12 shadow-sm ${viewMode === 'editor' ? 'min-h-[29.7cm]' : ''} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : 'max-w-[210mm]'}`}>
+    <div className={`paper mx-auto bg-white shadow-sm overflow-hidden ${viewMode === 'editor' ? 'min-h-[29.7cm] max-w-[960px] p-8' : 'max-w-[210mm] p-8 md:p-12'} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : ''}`}>
       {/* Header */}
       <div className="worksheet-header mb-8 border-b-2 border-gray-800 pb-5">
           <div className="worksheet-brand">
