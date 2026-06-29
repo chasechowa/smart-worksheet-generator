@@ -820,12 +820,9 @@ const callOpenAICompatibleJSON = async (
     max_tokens: maxTokensOverride || PROVIDER_MAX_TOKENS[provider] || 8192,
   };
 
-  // DeepSeek V4 Flash can return "{}" under JSON mode for long structured prompts.
-  // Keep JSON mode for Pro and other OpenAI-compatible models; only Flash uses
-  // prompt-only JSON because its long structured output is less stable.
-  if (!(provider === 'deepseek' && modelName === 'deepseek-v4-flash')) {
-    body.response_format = { type: 'json_object' };
-  }
+  // Section-level prompts are small enough for JSON mode, including DeepSeek V4 Flash.
+  // Keeping JSON mode on avoids empty assistant messages on short structured requests.
+  body.response_format = { type: 'json_object' };
 
   const response = await proxyFetch(url, {
     method: 'POST',
@@ -855,11 +852,8 @@ const callOpenAICompatibleJSON = async (
   const message = data.choices?.[0]?.message;
   const content = extractMessageContent(message);
   if (!content.trim()) {
-    const switchHint = modelName === 'deepseek-v4-flash'
-      ? ' Please retry, or switch to DeepSeek V4 Pro for long worksheet generation.'
-      : ' Please retry. If this persists, the provider returned an empty message for this request.';
     throw new Error(
-      `API returned empty content from ${provider}/${modelName}.` + switchHint
+      `API returned empty content from ${provider}/${modelName}. Please retry. If this persists, switch model or check provider status.`
     );
   }
   const jsonText = extractJSON(content);
