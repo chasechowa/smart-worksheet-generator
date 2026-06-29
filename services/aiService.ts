@@ -673,6 +673,14 @@ function extractMessageContent(message: any): string {
   return '';
 }
 
+function extractOpenAIChoiceContent(data: any): string {
+  const choice = data?.choices?.[0];
+  const messageContent = extractMessageContent(choice?.message);
+  if (messageContent.trim()) return messageContent;
+  if (typeof choice?.text === 'string') return choice.text;
+  return '';
+}
+
 function assertWorksheetLike(parsed: any, provider: AIProvider, modelName: string): WorksheetData {
   const hasWorksheetShape =
     parsed &&
@@ -812,62 +820,86 @@ const callOpenAICompatibleJSON = async (
 ): Promise<any> => {
   const resolvedBase = getBaseUrl(provider, baseUrl);
   const url = resolvedBase + '/chat/completions';
+  const maxTokens = maxTokensOverride || PROVIDER_MAX_TOKENS[provider] || 8192;
+  const attempts = provider === 'deepseek'
+    ? [
+        { label: 'json_mode', responseFormat: true, temperature: 0.2, maxTokens },
+        { label: 'plain_json', responseFormat: false, temperature: 0.2, maxTokens },
+        { label: 'plain_json_low_temp', responseFormat: false, temperature: 0.1, maxTokens },
+      ]
+    : [
+        { label: 'json_mode', responseFormat: true, temperature: 0.5, maxTokens },
+      ];
+  let lastError: Error | null = null;
 
-  const body: any = {
-    model: modelName,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.5,
-    max_tokens: maxTokensOverride || PROVIDER_MAX_TOKENS[provider] || 8192,
-  };
+  for (const attempt of attempts) {
+    const body: any = {
+      model: modelName,
+      messages: [
+        { role: 'system', content: 'Return exactly one valid JSON object. Do not include markdown, prose, or code fences.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: attempt.temperature,
+      max_tokens: attempt.maxTokens,
+    };
 
-  // Section-level prompts are small enough for JSON mode, including DeepSeek V4 Flash.
-  // Keeping JSON mode on avoids empty assistant messages on short structured requests.
-  body.response_format = { type: 'json_object' };
-
-  const response = await proxyFetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error(`API Error ${response.status} from ${provider}:`, errorBody);
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(`API key invalid or unauthorized (${response.status}). Please check your API key.`);
+    if (attempt.responseFormat) {
+      body.response_format = { type: 'json_object' };
     }
-    if (response.status === 402) {
-      throw new Error(`Insufficient balance (${response.status}). Your API account has no remaining credit.`);
+
+    const response = await proxyFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`API Error ${response.status} from ${provider}/${modelName} (${attempt.label}):`, errorBody);
+      if (response.status === 401 || response.status === 403) {
+        throw new Error(`API key invalid or unauthorized (${response.status}). Please check your API key.`);
+      }
+      if (response.status === 402) {
+        throw new Error(`Insufficient balance (${response.status}). Your API account has no remaining credit.`);
+      }
+      if (response.status === 429) {
+        throw new Error(`Rate limit exceeded (${response.status}). Please try again later.`);
+      }
+      lastError = new Error(`API Error ${response.status}: ${errorBody}`);
+      if (provider === 'deepseek' && attempt.responseFormat && response.status === 400) {
+        continue;
+      }
+      throw lastError;
     }
-    if (response.status === 429) {
-      throw new Error(`Rate limit exceeded (${response.status}). Please try again later.`);
+
+    const data = await response.json();
+    const content = extractOpenAIChoiceContent(data);
+    if (!content.trim()) {
+      const finishReason = data.choices?.[0]?.finish_reason || 'unknown';
+      lastError = new Error(
+        `API returned empty content from selected model ${provider}/${modelName} (${attempt.label}, finish_reason: ${finishReason}).`
+      );
+      console.warn(lastError.message);
+      continue;
     }
-    throw new Error(`API Error ${response.status}: ${errorBody}`);
+
+    const jsonText = extractJSON(content);
+    try {
+      return JSON.parse(jsonText);
+    } catch (parseErr: any) {
+      console.error(`Failed to parse JSON from API response (${attempt.label}):`, content);
+      const trimmed = content.trim();
+      if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
+        throw new Error(`AI response was truncated (incomplete JSON). The selected model ${provider}/${modelName} ran out of output tokens. Try fewer sections or a shorter article.`);
+      }
+      lastError = new Error(`Failed to parse API response from selected model ${provider}/${modelName}: ${parseErr.message}`);
+    }
   }
 
-  const data = await response.json();
-  const message = data.choices?.[0]?.message;
-  const content = extractMessageContent(message);
-  if (!content.trim()) {
-    throw new Error(
-      `API returned empty content from ${provider}/${modelName}. Please retry. If this persists, switch model or check provider status.`
-    );
-  }
-  const jsonText = extractJSON(content);
-
-  try {
-    return JSON.parse(jsonText);
-  } catch (parseErr: any) {
-    console.error("Failed to parse JSON from API response:", content);
-    const trimmed = content.trim();
-    if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
-      throw new Error(`AI response was truncated (incomplete JSON). The model ran out of output tokens. Try a shorter article or a model with a larger context window.`);
-    }
-    throw new Error(`Failed to parse API response: ${parseErr.message}`);
-  }
+  throw lastError || new Error(`API returned no usable JSON from selected model ${provider}/${modelName}.`);
 };
 
 const callOpenAICompatible = async (
