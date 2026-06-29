@@ -1250,9 +1250,10 @@ async function generateSectionedWorksheet(
 
   onProgress?.('Assembling worksheet...');
 
-  const multipleChoice = [
-    ...ensureArray(mcParts.multipleChoice, 'multipleChoice'),
-  ].sort((a, b) => {
+  const multipleChoice = (options.mc
+    ? ensureArray(mcParts.multipleChoice, 'multipleChoice')
+    : []
+  ).sort((a, b) => {
     const aNum = Number(String(a.id || '').replace(/\D/g, '')) || 0;
     const bNum = Number(String(b.id || '').replace(/\D/g, '')) || 0;
     return aNum - bNum;
