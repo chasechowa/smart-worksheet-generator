@@ -802,13 +802,13 @@ function getBaseUrl(provider: AIProvider, customUrl?: string): string {
   return PROVIDER_BASE_URLS[provider];
 }
 
-const callOpenAICompatible = async (
+const callOpenAICompatibleJSON = async (
   prompt: string,
   modelName: string,
   apiKey: string,
   provider: AIProvider,
   baseUrl?: string
-): Promise<WorksheetData> => {
+): Promise<any> => {
   const resolvedBase = getBaseUrl(provider, baseUrl);
   const url = resolvedBase + '/chat/completions';
 
@@ -820,8 +820,9 @@ const callOpenAICompatible = async (
   };
 
   // DeepSeek V4 Flash can return "{}" under JSON mode for long structured prompts.
-  // The prompt already enforces JSON-only output, and extractJSON handles fences/text.
-  if (!(provider === 'deepseek' && modelName.startsWith('deepseek-v4-'))) {
+  // Keep JSON mode for Pro and other OpenAI-compatible models; only Flash uses
+  // prompt-only JSON because its long structured output is less stable.
+  if (!(provider === 'deepseek' && modelName === 'deepseek-v4-flash')) {
     body.response_format = { type: 'json_object' };
   }
 
@@ -853,16 +854,17 @@ const callOpenAICompatible = async (
   const message = data.choices?.[0]?.message;
   const content = extractMessageContent(message);
   if (!content.trim()) {
+    const switchHint = modelName === 'deepseek-v4-flash'
+      ? ' Please retry, or switch to DeepSeek V4 Pro for long worksheet generation.'
+      : ' Please retry. If this persists, the provider returned an empty message for this request.';
     throw new Error(
-      `API returned empty content from ${provider}/${modelName}. ` +
-      `Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning empty output.`
+      `API returned empty content from ${provider}/${modelName}.` + switchHint
     );
   }
   const jsonText = extractJSON(content);
 
   try {
-    const parsed = JSON.parse(jsonText);
-    return assertWorksheetLike(parsed, provider, modelName);
+    return JSON.parse(jsonText);
   } catch (parseErr: any) {
     console.error("Failed to parse JSON from API response:", content);
     const trimmed = content.trim();
@@ -871,6 +873,17 @@ const callOpenAICompatible = async (
     }
     throw new Error(`Failed to parse API response: ${parseErr.message}`);
   }
+};
+
+const callOpenAICompatible = async (
+  prompt: string,
+  modelName: string,
+  apiKey: string,
+  provider: AIProvider,
+  baseUrl?: string
+): Promise<WorksheetData> => {
+  const parsed = await callOpenAICompatibleJSON(prompt, modelName, apiKey, provider, baseUrl);
+  return assertWorksheetLike(parsed, provider, modelName);
 };
 
 // ==================== Unified Dispatch ====================
@@ -886,6 +899,282 @@ async function callAI(prompt: string, aiConfig: AIConfig): Promise<WorksheetData
     default:
       throw new Error(`Unsupported provider: ${aiConfig.provider}`);
   }
+}
+
+async function callJSON(prompt: string, aiConfig: AIConfig): Promise<any> {
+  switch (aiConfig.provider) {
+    case 'deepseek':
+    case 'kimi':
+    case 'custom':
+      return callOpenAICompatibleJSON(prompt, aiConfig.model, aiConfig.apiKey, aiConfig.provider, aiConfig.baseUrl);
+    default:
+      return callAI(prompt, aiConfig);
+  }
+}
+
+function buildSectionPromptHeader(article: string, difficulty: Difficulty, sectionName: string): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+You are generating ONE SECTION of an ESL reading worksheet.
+Section: ${sectionName}
+Level: ${profile.label}
+
+Rules:
+- Return ONLY valid JSON. No markdown fences, no comments.
+- Do not include fields outside the requested schema.
+- All content must be based on the article.
+- Use the exact field names shown.
+
+Article:
+${article}
+`;
+}
+
+function buildSummarySectionPrompt(article: string, difficulty: Difficulty): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+${buildSectionPromptHeader(article, difficulty, 'Title, article snippet, and summary completion')}
+
+Create:
+1. A concise worksheet title.
+2. articleSnippet: about 150-220 words copied verbatim from the beginning or core of the article.
+3. summary: one paragraph with EXACTLY five [BLANK] tokens.
+4. summary.blanks: EXACTLY five answers, each answer must appear verbatim in the article.
+
+Difficulty guidance:
+- Summary blank max words: ${profile.summary.maxBlankWords}
+- Paraphrase degree: ${profile.summary.paraphraseDegree}
+- ${profile.summary.guidance}
+
+JSON schema:
+{
+  "title": "Worksheet title",
+  "articleSnippet": "verbatim article excerpt",
+  "summary": {
+    "paragraph": "Summary sentence with [BLANK] ... exactly five blanks total.",
+    "blanks": ["answer1", "answer2", "answer3", "answer4", "answer5"]
+  }
+}
+`;
+}
+
+function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+${buildSectionPromptHeader(article, difficulty, `Multiple choice questions q${start}-q${end}`)}
+
+Generate ONLY questions q${start} through q${end}. Do not generate other question ids.
+
+Authoritative slot blueprint:
+${buildLevelMCBlueprint(difficulty)}
+
+Quality rules:
+- ${profile.mcQuestions.guidance}
+- Correct answers must be text-supported and paraphrased unless the slot is Vocabulary in Context or Evidence Reasoning quotes.
+- Every question needs: id, type, cognitiveLevel, question, options, answer, explanation, distractors.
+- options must be an array of exactly four raw option texts. No A/B/C/D prefixes.
+- answer must be one letter: A, B, C, or D.
+- distractors must include metadata for wrong options only.
+- Allowed distractor patterns: Too Broad, Too Narrow, Too Strong, Partially True, Wrong Scope, Unsupported Inference, Reversed Logic.
+- For C1 Inference and Structure / Function / Synthesis questions, include evidence[] with at least 2 references and reasoningSteps[] with at least 2 steps.
+- For Evidence Reasoning pairs, include matching evidencePairLink fields.
+- For evidence quote questions, options should be short verbatim quotations from the article.
+
+JSON schema:
+{
+  "multipleChoice": [
+    {
+      "id": "q${start}",
+      "type": "Main Idea",
+      "cognitiveLevel": "retrieval",
+      "question": "...",
+      "options": ["...", "...", "...", "..."],
+      "answer": "A",
+      "explanation": "...",
+      "distractors": {
+        "B": { "pattern": "Too Broad", "rationale": "..." },
+        "C": { "pattern": "Wrong Scope", "rationale": "..." },
+        "D": { "pattern": "Unsupported Inference", "rationale": "..." }
+      },
+      "evidence": ["optional for C1 inference/synthesis"],
+      "reasoningSteps": ["optional for C1 inference/synthesis"],
+      "evidencePairLink": { "claimQuestionId": "q4", "evidenceQuestionId": "q5" }
+    }
+  ]
+}
+`;
+}
+
+function buildSyntaxSectionPrompt(article: string, difficulty: Difficulty): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+${buildSectionPromptHeader(article, difficulty, 'Syntax deconstruction')}
+
+Create EXACTLY 2 syntax deconstruction items.
+- ${profile.syntax.guidance}
+- Choose sentences with high grammar learning value, not merely long sentences.
+- original must be copied verbatim from the article.
+- answer should decompose the sentence into simple clauses and label clause types.
+- Target sentence word range: ${profile.syntax.sentenceWordRange[0]}-${profile.syntax.sentenceWordRange[1]} words.
+- Target clause types: ${profile.syntax.targetClauseTypes.join(', ')}.
+- Decomposition detail: ${profile.syntax.decompositionDetail}.
+
+JSON schema:
+{
+  "syntaxDeconstruction": [
+    { "id": "s1", "original": "Exact sentence from article.", "answer": "Clause-by-clause decomposition." },
+    { "id": "s2", "original": "Exact sentence from article.", "answer": "Clause-by-clause decomposition." }
+  ]
+}
+`;
+}
+
+function buildWritingSectionPrompt(article: string, difficulty: Difficulty): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+${buildSectionPromptHeader(article, difficulty, 'Writing and logic workshop')}
+
+Create:
+1. expansion: EXACTLY 4 items. Each fact must be based on the article. Give 2-3 level-appropriate conjunctions and a sampleAnswer.
+2. keywords: EXACTLY 5 core words or short phrases that appear verbatim in the article.
+3. qaChain: EXACTLY 4 open-ended questions at ${profile.writing.qaComplexity} level.
+4. criticalThinking: ONE ${profile.writing.criticalThinkingType} prompt.
+5. keys.expansion: model answers for the 4 expansion items.
+6. keys.qa: concise model answers for the 4 Q&A questions.
+7. keys.critical: key guidance points for the criticalThinking prompt.
+
+Writing guidance:
+- ${profile.writing.guidance}
+- Expected writing output: ${profile.writing.expectedWritingOutput}
+- Suggested conjunctions: ${profile.writing.conjunctionExamples.join(', ')}
+
+JSON schema:
+{
+  "writingWorkshop": {
+    "expansion": [
+      { "id": "e1", "fact": "...", "conjunctions": ["however", "therefore"], "sampleAnswer": "..." }
+    ],
+    "keywords": ["...", "...", "...", "...", "..."],
+    "qaChain": ["Question 1?", "Question 2?", "Question 3?", "Question 4?"],
+    "criticalThinking": "..."
+  },
+  "keys": {
+    "expansion": ["...", "...", "...", "..."],
+    "qa": ["...", "...", "...", "..."],
+    "critical": "..."
+  }
+}
+`;
+}
+
+function ensureArray<T>(value: T[] | undefined, label: string): T[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`AI section response missing array: ${label}`);
+  }
+  return value;
+}
+
+async function generateJSONSection(
+  label: string,
+  prompt: string,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+): Promise<any> {
+  onProgress?.(label);
+  return withRetry(() => callJSON(prompt, aiConfig));
+}
+
+async function generateSectionedWorksheet(
+  article: string,
+  difficulty: Difficulty,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+): Promise<WorksheetData> {
+  const summaryPart = await generateJSONSection(
+    'Generating summary (1/5)...',
+    buildSummarySectionPrompt(article, difficulty),
+    aiConfig,
+    onProgress,
+  );
+
+  const mcFirst = await generateJSONSection(
+    'Generating questions 1-5 (2/5)...',
+    buildMCBatchPrompt(article, difficulty, 1, 5),
+    aiConfig,
+    onProgress,
+  );
+
+  const mcSecond = await generateJSONSection(
+    'Generating questions 6-10 (3/5)...',
+    buildMCBatchPrompt(article, difficulty, 6, 10),
+    aiConfig,
+    onProgress,
+  );
+
+  const syntaxPart = await generateJSONSection(
+    'Generating syntax section (4/5)...',
+    buildSyntaxSectionPrompt(article, difficulty),
+    aiConfig,
+    onProgress,
+  );
+
+  const writingPart = await generateJSONSection(
+    'Generating writing section (5/5)...',
+    buildWritingSectionPrompt(article, difficulty),
+    aiConfig,
+    onProgress,
+  );
+
+  onProgress?.('Assembling worksheet...');
+
+  const multipleChoice = [
+    ...ensureArray(mcFirst.multipleChoice, 'multipleChoice q1-q5'),
+    ...ensureArray(mcSecond.multipleChoice, 'multipleChoice q6-q10'),
+  ].sort((a, b) => {
+    const aNum = Number(String(a.id || '').replace(/\D/g, '')) || 0;
+    const bNum = Number(String(b.id || '').replace(/\D/g, '')) || 0;
+    return aNum - bNum;
+  });
+
+  const syntaxDeconstruction = ensureArray(syntaxPart.syntaxDeconstruction, 'syntaxDeconstruction');
+  const expansion = ensureArray(writingPart.writingWorkshop?.expansion, 'writingWorkshop.expansion');
+  const keywords = ensureArray(writingPart.writingWorkshop?.keywords, 'writingWorkshop.keywords');
+  const qaChain = ensureArray(writingPart.writingWorkshop?.qaChain, 'writingWorkshop.qaChain');
+
+  return {
+    title: summaryPart.title || 'Untitled Worksheet',
+    articleSnippet: summaryPart.articleSnippet || article.slice(0, 900),
+    header: {
+      brand: 'OTIA',
+      nameLabel: 'Name',
+      scoreLabel: 'Score',
+    },
+    summary: {
+      paragraph: summaryPart.summary?.paragraph || '',
+      blanks: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
+    },
+    multipleChoice,
+    syntaxDeconstruction,
+    writingWorkshop: {
+      expansion,
+      keywords,
+      qaChain,
+      criticalThinking: writingPart.writingWorkshop?.criticalThinking || '',
+    },
+    keys: {
+      summary: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
+      mc: multipleChoice.reduce((acc: Record<string, string>, q: any) => {
+        if (q.id && q.answer) acc[q.id] = q.answer;
+        return acc;
+      }, {}),
+      syntaxDeconstruction: syntaxDeconstruction.map((item: any) => item.answer || ''),
+      expansion: Array.isArray(writingPart.keys?.expansion)
+        ? writingPart.keys.expansion
+        : expansion.map((item: any) => item.sampleAnswer || ''),
+      qa: Array.isArray(writingPart.keys?.qa) ? writingPart.keys.qa : [],
+      critical: writingPart.keys?.critical || '',
+    },
+  };
 }
 
 // ==================== Refinement (self-correction) ====================
@@ -1181,6 +1470,7 @@ export async function generateAndRefine(
   article: string,
   difficulty: Difficulty,
   onRound?: (round: number, data: WorksheetData, report: RefinementReport) => void,
+  onProgress?: (message: string) => void,
 ): Promise<{ data: WorksheetData; rounds: number; reports: RefinementReport[] }> {
   const aiConfig = getActiveConfig();
   if (!aiConfig || !aiConfig.apiKey) {
@@ -1190,8 +1480,9 @@ export async function generateAndRefine(
   const reports: RefinementReport[] = [];
 
   // --- Initial generation ---
-  const prompt = buildPrompt(article, difficulty);
-  let data = await withRetry(() => callAI(prompt, aiConfig));
+  let data = aiConfig.provider === 'deepseek'
+    ? await generateSectionedWorksheet(article, difficulty, aiConfig, onProgress)
+    : await withRetry(() => callAI(buildPrompt(article, difficulty), aiConfig));
   let rounds = 0;
 
   // Dynamic import to avoid circular dependency

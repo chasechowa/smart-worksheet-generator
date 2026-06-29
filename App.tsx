@@ -425,6 +425,7 @@ export default function App() {
           const total = report.fixedIssues.length + report.remainingIssues.length;
           setLoadingMessage(`Refining (round ${round}) — fixed ${report.fixedIssues.length}, ${report.remainingIssues.length} remaining...`);
         },
+        message => setLoadingMessage(message),
       );
 
       // Run generated data through the same safety normalizer used for saved projects.
@@ -457,7 +458,7 @@ export default function App() {
       // Show validation panel only for hard errors
       if (errors.length > 0) {
         setValidationResult({ ...validation, data: finalData });
-        setError('Generation returned an invalid worksheet. Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning incomplete output.');
+        setError('Generation returned an invalid worksheet. Please retry. The request is now split by section to reduce token truncation.');
         return;
       }
 
@@ -494,13 +495,14 @@ export default function App() {
         (round, _data, report) => {
           setLoadingMessage(`Refining (round ${round}) — ${report.fixedIssues.length} fixed, ${report.remainingIssues.length} remaining...`);
         },
+        message => setLoadingMessage(message),
       );
       const normalizedRawData = normalizeWorksheetData(rawData);
       const validation = validateWorksheet(normalizedRawData, article, settings.difficulty);
       setValidationResult(validation);
       const errors = validation.issues.filter(i => i.severity === 'error');
       if (errors.length > 0) {
-        setError('Regeneration returned an invalid worksheet. Please retry, or switch to DeepSeek V4 Pro if Flash keeps returning incomplete output.');
+        setError('Regeneration returned an invalid worksheet. Please retry. The request is now split by section to reduce token truncation.');
         return;
       }
       setData(validation.data);
