@@ -2,10 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将现有 Smart Worksheet Generator 按 VocabForge 架构重构，新增多 Provider API 配置管理、题目质量校验系统、本地项目文件持久化三大能力，同时保留全部现有阅读出题逻辑。
-
-**Architecture:** 在 Renderer 进程新增 configService / validatorService / storageService 三个核心服务层；Electron Main 进程新增 `fs:*` IPC 通道；按题型拆分校验规则模块；App.tsx 瘦身并将 UI 逻辑拆分为独立组件。
-
+**Goal:** 将现�?Smart Worksheet Generator �?VocabForge 架构重构，新增多 Provider API 配置管理、题目质量校验系统、本地项目文件持久化三大能力，同时保留全部现有阅读出题逻辑�?
+**Architecture:** �?Renderer 进程新增 configService / validatorService / storageService 三个核心服务层；Electron Main 进程新增 `fs:*` IPC 通道；按题型拆分校验规则模块；App.tsx 瘦身并将 UI 逻辑拆分为独立组件�?
 **Tech Stack:** Electron 35 + Vite 6 + React 19 + TypeScript + Tailwind CSS + vitest
 
 ---
@@ -15,32 +13,32 @@
 ### New Files
 | File | Responsibility |
 |------|---------------|
-| `src/services/configService.ts` | Provider 配置管理（CRUD + active provider 切换） |
+| `src/services/configService.ts` | Provider 配置管理（CRUD + active provider 切换�?|
 | `src/services/validatorService.ts` | 校验入口与编排，调用各题型校验器 |
 | `src/services/storageService.ts` | Renderer 侧文件操作代理，调用 IPC |
-| `src/validators/index.ts` | 校验器编排入口 |
+| `src/validators/index.ts` | 校验器编排入�?|
 | `src/validators/summaryValidator.ts` | Summary Completion 规则校验 |
 | `src/validators/mcValidator.ts` | Multiple Choice 规则校验 |
 | `src/validators/syntaxValidator.ts` | Syntax Deconstruction 规则校验 |
 | `src/validators/writingValidator.ts` | Writing Workshop 规则校验 |
-| `src/validators/keysValidator.ts` | Keys 一致性校验 |
+| `src/validators/keysValidator.ts` | Keys 一致性校�?|
 | `src/data/standard-examples/example-b2-sat.json` | B2 难度标准范例 |
 | `src/data/standard-examples/example-c1-ielts.json` | C1 难度标准范例 |
-| `src/components/InputSection.tsx` | 文章输入、难度选择、生成按钮 |
-| `src/components/TestPreview.tsx` | 测试卷渲染与编辑（从 App.tsx 抽出 WorksheetPaper） |
-| `src/components/SectionTogglePanel.tsx` | 题型显示开关与排序（从 App.tsx 抽出） |
+| `src/components/InputSection.tsx` | 文章输入、难度选择、生成按�?|
+| `src/components/TestPreview.tsx` | 测试卷渲染与编辑（从 App.tsx 抽出 WorksheetPaper�?|
+| `src/components/SectionTogglePanel.tsx` | 题型显示开关与排序（从 App.tsx 抽出�?|
 | `src/components/ConfigPanel.tsx` | AI Provider 配置面板 |
-| `src/components/ProjectPanel.tsx` | 项目列表、加载、删除、导入导出 |
+| `src/components/ProjectPanel.tsx` | 项目列表、加载、删除、导入导�?|
 | `src/components/ValidationPanel.tsx` | 校验结果展示面板 |
 
 ### Modified Files
 | File | Change |
 |------|--------|
 | `src/types.ts` | 追加 Project / ProviderConfigs / Validation 类型 |
-| `src/services/aiService.ts` | 移除 localStorage 读写，接入 configService |
+| `src/services/aiService.ts` | 移除 localStorage 读写，接�?configService |
 | `src/App.tsx` | 大幅瘦身：保留全局状态与布局骨架，UI 逻辑拆至 components |
-| `electron/main.js` | 重写：新增 `fs:*` IPC handlers，保留 `api-call` |
-| `electron/preload.js` | 重写：暴露 `fs:*` API |
+| `electron/main.js` | 重写：新�?`fs:*` IPC handlers，保�?`api-call` |
+| `electron/preload.js` | 重写：暴�?`fs:*` API |
 | `package.json` | 新增 vitest devDependency |
 | `vite.config.ts` | 追加 test 配置 |
 
@@ -60,14 +58,13 @@
 **Files:**
 - Modify: `src/types.ts`
 
-将以下类型追加到 `src/types.ts` 现有内容之后，保留所有已有类型不变。
+将以下类型追加到 `src/types.ts` 现有内容之后，保留所有已有类型不变�?
+- [ ] **Step 1: 追加 ProviderConfigs 和增�?AIConfig**
 
-- [ ] **Step 1: 追加 ProviderConfigs 和增强 AIConfig**
-
-在 `src/types.ts` 中，将 `AIProvider` 和 `AIConfig` 替换为：
+�?`src/types.ts` 中，�?`AIProvider` �?`AIConfig` 替换为：
 
 ```ts
-export type AIProvider = 'gemini' | 'deepseek' | 'kimi' | 'custom';
+export type AIProvider = 'deepseek' | 'kimi' | 'custom';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -83,13 +80,12 @@ export interface ProviderConfigs {
 }
 ```
 
-注意：必须同时更新 `PROVIDER_MODELS` 和 `PROVIDER_DEFAULTS`，增加 `custom` provider：
-
+注意：必须同时更�?`PROVIDER_MODELS` �?`PROVIDER_DEFAULTS`，增�?`custom` provider�?
 ```ts
 export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string }[]> = {
-  gemini: [
-    { label: 'Flash', value: 'gemini-3-flash-preview' },
-    { label: 'Pro', value: 'gemini-3-pro-preview' },
+  deepseek: [
+    { label: 'Flash', value: 'deepseek-v4-pro' },
+    { label: 'Pro', value: 'deepseek-v4-pro' },
   ],
   deepseek: [
     { label: 'DeepSeek V3', value: 'deepseek-chat' },
@@ -106,7 +102,7 @@ export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string 
 };
 
 export const PROVIDER_DEFAULTS: Record<AIProvider, { model: string }> = {
-  gemini: { model: 'gemini-3-flash-preview' },
+  deepseek: { model: 'deepseek-v4-pro' },
   deepseek: { model: 'deepseek-chat' },
   kimi: { model: 'moonshot-v1-8k' },
   custom: { model: 'custom-model' },
@@ -159,8 +155,7 @@ export interface ProjectMeta {
 
 - [ ] **Step 4: 追加 WorksheetMeta**
 
-修改现有 `WorksheetData` 接口，追加 `_meta` 字段：
-
+修改现有 `WorksheetData` 接口，追�?`_meta` 字段�?
 ```ts
 export interface WorksheetData {
   title: string;
@@ -195,16 +190,14 @@ export interface WorksheetData {
 }
 ```
 
-- [ ] **Step 5: 验证类型文件无语法错误**
+- [ ] **Step 5: 验证类型文件无语法错�?*
 
 运行: `npx tsc --noEmit`
 
-Expected: 无错误（或仅现有错误）
-
+Expected: 无错误（或仅现有错误�?
 ---
 
-## Task 2: 安装 vitest 并配置测试
-
+## Task 2: 安装 vitest 并配置测�?
 **Files:**
 - Modify: `package.json`
 - Modify: `vite.config.ts`
@@ -215,7 +208,7 @@ Expected: 无错误（或仅现有错误）
 npm install -D vitest
 ```
 
-Expected: `package.json` devDependencies 中出现 `vitest`
+Expected: `package.json` devDependencies 中出�?`vitest`
 
 - [ ] **Step 2: 修改 vite.config.ts 追加 test 配置**
 
@@ -256,23 +249,22 @@ export default defineConfig({
 }
 ```
 
-- [ ] **Step 4: 验证 vitest 可运行**
+- [ ] **Step 4: 验证 vitest 可运�?*
 
 ```bash
 npx vitest run --version
 ```
 
-Expected: 输出版本号，无报错
-
+Expected: 输出版本号，无报�?
 ---
 
-## Task 3: configService — API 配置管理
+## Task 3: configService �?API 配置管理
 
 **Files:**
 - Create: `src/services/configService.ts`
 - Create: `src/services/__tests__/configService.test.ts`
 
-- [ ] **Step 1: 写 configService 的测试（失败状态）**
+- [ ] **Step 1: �?configService 的测试（失败状态）**
 
 Create `src/services/__tests__/configService.test.ts`:
 
@@ -301,9 +293,9 @@ describe('configService', () => {
     initDefaultConfigs();
     const configs = getStoredConfigs();
     expect(configs).not.toBeNull();
-    expect(configs!.activeProvider).toBe('gemini');
-    expect(configs!.providers.gemini).toBeDefined();
-    expect(configs!.providers.gemini.enabled).toBe(false);
+    expect(configs!.activeProvider).toBe('deepseek');
+    expect(configs!.providers.deepseek).toBeDefined();
+    expect(configs!.providers.deepseek.enabled).toBe(false);
   });
 
   it('should save and retrieve provider config', () => {
@@ -330,8 +322,7 @@ describe('configService', () => {
 
 Run: `npx vitest run src/services/__tests__/configService.test.ts`
 
-Expected: FAIL — `configService` 模块不存在
-
+Expected: FAIL �?`configService` 模块不存�?
 - [ ] **Step 2: 实现 configService**
 
 Create `src/services/configService.ts`:
@@ -367,9 +358,9 @@ export function saveStoredConfigs(configs: ProviderConfigs): void {
 
 export function initDefaultConfigs(): ProviderConfigs {
   const configs: ProviderConfigs = {
-    activeProvider: 'gemini',
+    activeProvider: 'deepseek',
     providers: {
-      gemini: createDefaultConfig('gemini'),
+      deepseek: createDefaultConfig('deepseek'),
       deepseek: createDefaultConfig('deepseek'),
       kimi: createDefaultConfig('kimi'),
       custom: { ...createDefaultConfig('custom'), baseUrl: '' },
@@ -439,8 +430,7 @@ git commit -m "feat: add configService with multi-provider API config management
 
 ---
 
-## Task 4: Validators — 按题型拆分校验规则
-
+## Task 4: Validators �?按题型拆分校验规�?
 **Files:**
 - Create: `src/validators/summaryValidator.ts`
 - Create: `src/validators/mcValidator.ts`
@@ -941,7 +931,7 @@ export * from './writingValidator';
 export * from './keysValidator';
 ```
 
-- [ ] **Step 7: 写 summaryValidator 测试**
+- [ ] **Step 7: �?summaryValidator 测试**
 
 Create `src/validators/__tests__/summaryValidator.test.ts`:
 
@@ -998,7 +988,7 @@ Run: `npx vitest run src/validators/__tests__/summaryValidator.test.ts`
 
 Expected: PASS
 
-- [ ] **Step 8: 写 mcValidator 测试**
+- [ ] **Step 8: �?mcValidator 测试**
 
 Create `src/validators/__tests__/mcValidator.test.ts`:
 
@@ -1078,13 +1068,12 @@ git commit -m "feat: add per-question-type validators with auto-fix and tests"
 
 ---
 
-## Task 5: validatorService — 校验入口与结果封装
-
+## Task 5: validatorService �?校验入口与结果封�?
 **Files:**
 - Create: `src/services/validatorService.ts`
 - Create: `src/services/__tests__/validatorService.test.ts`
 
-- [ ] **Step 1: 写 validatorService 测试**
+- [ ] **Step 1: �?validatorService 测试**
 
 Create `src/services/__tests__/validatorService.test.ts`:
 
@@ -1157,8 +1146,7 @@ describe('validatorService', () => {
 
 Run: `npx vitest run src/services/__tests__/validatorService.test.ts`
 
-Expected: FAIL — validatorService 不存在
-
+Expected: FAIL �?validatorService 不存�?
 - [ ] **Step 2: 实现 validatorService**
 
 Create `src/services/validatorService.ts`:
@@ -1182,7 +1170,7 @@ export function validateWorksheet(data: WorksheetData, articleText: string): Val
     ...fixedData,
     _meta: {
       generatedAt: data._meta?.generatedAt || Date.now(),
-      provider: data._meta?.provider || 'gemini',
+      provider: data._meta?.provider || 'deepseek',
       model: data._meta?.model || 'unknown',
       validated: errors.length === 0,
       validationIssues: issues.map(i => `[${i.severity.toUpperCase()}] ${i.section}: ${i.message}`),
@@ -1213,7 +1201,7 @@ git commit -m "feat: add validatorService orchestration layer"
 
 ---
 
-## Task 6: Electron Main/Preload — 新增 fs IPC
+## Task 6: Electron Main/Preload �?新增 fs IPC
 
 **Files:**
 - Rewrite: `electron/main.js`
@@ -1410,7 +1398,7 @@ app.on('window-all-closed', () => {
 });
 ```
 
-- [ ] **Step 3: 验证 Electron 能正常启动**
+- [ ] **Step 3: 验证 Electron 能正常启�?*
 
 ```bash
 npm run electron:dev
@@ -1429,13 +1417,12 @@ git commit -m "feat: add fs IPC handlers for project persistence"
 
 ---
 
-## Task 7: storageService — Renderer 侧文件管理
-
+## Task 7: storageService �?Renderer 侧文件管�?
 **Files:**
 - Create: `src/services/storageService.ts`
 - Create: `src/services/__tests__/storageService.test.ts`
 
-- [ ] **Step 1: 写 storageService 测试**
+- [ ] **Step 1: �?storageService 测试**
 
 Create `src/services/__tests__/storageService.test.ts`:
 
@@ -1490,8 +1477,7 @@ describe('storageService', () => {
 
 Run: `npx vitest run src/services/__tests__/storageService.test.ts`
 
-Expected: FAIL — storageService 不存在
-
+Expected: FAIL �?storageService 不存�?
 - [ ] **Step 2: 实现 storageService**
 
 Create `src/services/storageService.ts`:
@@ -1632,8 +1618,8 @@ And update `callAI`:
 ```ts
 async function callAI(prompt: string, aiConfig: AIConfig): Promise<WorksheetData> {
   switch (aiConfig.provider) {
-    case 'gemini':
-      return callGemini(prompt, aiConfig.model, aiConfig.apiKey);
+    case 'deepseek':
+      return callOpenAICompatible(prompt, aiConfig.model, aiConfig.apiKey);
     case 'deepseek':
     case 'kimi':
     case 'custom':
@@ -1644,7 +1630,7 @@ async function callAI(prompt: string, aiConfig: AIConfig): Promise<WorksheetData
 }
 ```
 
-- [ ] **Step 2: 验证 aiService 无 TypeScript 错误**
+- [ ] **Step 2: 验证 aiService �?TypeScript 错误**
 
 Run: `npx tsc --noEmit`
 
@@ -1818,8 +1804,7 @@ Create `src/data/standard-examples/example-b2-sat.json`:
 
 Create `src/data/standard-examples/example-c1-ielts.json`:
 
-内容结构与 B2 范例相同，但使用 C1 难度的文章和题目（更复杂的词汇、长难句、抽象概念）。为节省篇幅，此处给出结构骨架，具体题目需根据 C1 难度手工设计。
-
+内容结构�?B2 范例相同，但使用 C1 难度的文章和题目（更复杂的词汇、长难句、抽象概念）。为节省篇幅，此处给出结构骨架，具体题目需根据 C1 难度手工设计�?
 ```json
 {
   "title": "The Epistemology of Climate Modeling",
@@ -1869,8 +1854,7 @@ Create `src/data/standard-examples/example-c1-ielts.json`:
 }
 ```
 
-注意：C1 范例的 multipleChoice 需要补全到 10 题，语法结构和 keys 也需要补全。这是一个完整但精简的骨架，实际数据需要补全。
-
+注意：C1 范例�?multipleChoice 需要补全到 10 题，语法结构�?keys 也需要补全。这是一个完整但精简的骨架，实际数据需要补全�?
 - [ ] **Step 3: Commit**
 
 ```bash
@@ -1934,8 +1918,8 @@ export const ConfigPanel: React.FC = () => {
       const config = currentConfig;
       if (!config.apiKey) throw new Error('API Key is required');
 
-      if (config.provider === 'gemini') {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${config.apiKey}&pageSize=1`);
+      if (config.provider === 'deepseek') {
+        const res = await fetch(`https://api.deepseek.com/chat/completions?key=${config.apiKey}&pageSize=1`);
         if (!res.ok) throw new Error(`API returned ${res.status}`);
       } else {
         const base = config.baseUrl || (config.provider === 'deepseek' ? 'https://api.deepseek.com/v1' : 'https://api.moonshot.cn/v1');
@@ -1963,7 +1947,7 @@ export const ConfigPanel: React.FC = () => {
           onChange={e => handleProviderChange(e.target.value as AIProvider)}
           className="w-full border rounded p-2 text-sm"
         >
-          <option value="gemini">Gemini</option>
+          <option value="deepseek">DeepSeek</option>
           <option value="deepseek">DeepSeek</option>
           <option value="kimi">Kimi</option>
           <option value="custom">Custom (OpenAI-compatible)</option>
@@ -2047,7 +2031,7 @@ git commit -m "feat: add ConfigPanel with per-provider config and connection tes
 **Files:**
 - Create: `src/components/InputSection.tsx`
 
-- [ ] **Step 1: 从 App.tsx 抽出 InputSection**
+- [ ] **Step 1: �?App.tsx 抽出 InputSection**
 
 Create `src/components/InputSection.tsx`:
 
@@ -2155,7 +2139,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetr
   if (result.valid && warnings.length === 0) {
     return (
       <div className="bg-green-50 border border-green-200 rounded p-3 text-green-700 text-xs font-bold flex items-center gap-2">
-        <span>✓</span> Worksheet validated successfully
+        <span>�?/span> Worksheet validated successfully
       </div>
     );
   }
@@ -2163,7 +2147,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetr
   return (
     <div className={`rounded border p-3 text-xs ${errors.length > 0 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
       <div className="font-bold mb-2 flex items-center gap-2">
-        <span>{errors.length > 0 ? '⚠' : '◉'}</span>
+        <span>{errors.length > 0 ? '�? : '�?}</span>
         {errors.length > 0 ? `Validation failed: ${errors.length} error(s)` : `${warnings.length} warning(s)`}
       </div>
 
@@ -2174,7 +2158,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetr
             {errors.map((e, i) => (
               <li key={i}>
                 [{e.section}] {e.message}
-                {e.suggestion && <span className="block text-red-600 ml-4">→ {e.suggestion}</span>}
+                {e.suggestion && <span className="block text-red-600 ml-4">�?{e.suggestion}</span>}
               </li>
             ))}
           </ul>
@@ -2188,7 +2172,7 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetr
             {warnings.map((w, i) => (
               <li key={i}>
                 [{w.section}] {w.message}
-                {w.suggestion && <span className="block text-yellow-600 ml-4">→ {w.suggestion}</span>}
+                {w.suggestion && <span className="block text-yellow-600 ml-4">�?{w.suggestion}</span>}
               </li>
             ))}
           </ul>
@@ -2335,17 +2319,17 @@ git commit -m "feat: add ProjectPanel for local project management"
 
 ---
 
-## Task 14: TestPreview 与 SectionTogglePanel 组件
+## Task 14: TestPreview �?SectionTogglePanel 组件
 
 **Files:**
 - Create: `src/components/TestPreview.tsx`
 - Create: `src/components/SectionTogglePanel.tsx`
 
-- [ ] **Step 1: 从 App.tsx 抽出 TestPreview（WorksheetPaper）**
+- [ ] **Step 1: �?App.tsx 抽出 TestPreview（WorksheetPaper�?*
 
 Create `src/components/TestPreview.tsx`:
 
-将 `App.tsx` 中的 `WorksheetPaper` 组件完整迁移到 `TestPreview.tsx`，并导出为默认组件。Props 接口保持完全一致：
+�?`App.tsx` 中的 `WorksheetPaper` 组件完整迁移�?`TestPreview.tsx`，并导出为默认组件。Props 接口保持完全一致：
 
 ```tsx
 import React from 'react';
@@ -2362,24 +2346,20 @@ interface TestPreviewProps {
   viewMode: ViewMode;
 }
 
-// WorksheetPaper 的全部逻辑迁移到这里
-// ... (完整迁移 App.tsx 第 199-638 行的 WorksheetPaper 组件代码)
+// WorksheetPaper 的全部逻辑迁移到这�?// ... (完整迁移 App.tsx �?199-638 行的 WorksheetPaper 组件代码)
 
 export default function TestPreview({ data, settings, visibleSections, sectionOrder, onUpdate, viewMode }: TestPreviewProps) {
-  // WorksheetPaper 的完整实现
-}
+  // WorksheetPaper 的完整实�?}
 ```
 
-实际迁移时，从 `App.tsx` 复制 `WorksheetPaper` 组件的全部代码（包括 `BASE_STYLES`, `STD_STYLES`, `COMPACT_STYLES`, `INTERACTIVE_SCRIPT`, `PrintableField`, `Toggle` 等内部组件和辅助函数），粘贴到 `TestPreview.tsx`。
-
-- [ ] **Step 2: 从 App.tsx 抽出 SectionTogglePanel**
+实际迁移时，�?`App.tsx` 复制 `WorksheetPaper` 组件的全部代码（包括 `BASE_STYLES`, `STD_STYLES`, `COMPACT_STYLES`, `INTERACTIVE_SCRIPT`, `PrintableField`, `Toggle` 等内部组件和辅助函数），粘贴�?`TestPreview.tsx`�?
+- [ ] **Step 2: �?App.tsx 抽出 SectionTogglePanel**
 
 Create `src/components/SectionTogglePanel.tsx`:
 
 ```tsx
 import React from 'react';
-import { Toggle } from './TestPreview'; // 注意：Toggle 现在在 TestPreview 中
-
+import { Toggle } from './TestPreview'; // 注意：Toggle 现在�?TestPreview �?
 interface SectionTogglePanelProps {
   sectionOrder: string[];
   visibleSections: Set<string>;
@@ -2449,7 +2429,7 @@ export const SectionTogglePanel: React.FC<SectionTogglePanelProps> = ({ sectionO
 };
 ```
 
-注意：`Toggle` 组件在迁移到 `TestPreview.tsx` 后，需要从 `TestPreview.tsx` 导出供 `SectionTogglePanel` 使用。在 `TestPreview.tsx` 底部添加：`export { Toggle };`
+注意：`Toggle` 组件在迁移到 `TestPreview.tsx` 后，需要从 `TestPreview.tsx` 导出�?`SectionTogglePanel` 使用。在 `TestPreview.tsx` 底部添加：`export { Toggle };`
 
 - [ ] **Step 3: Commit**
 
@@ -2492,7 +2472,7 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [activeWorksheetIndex, setActiveWorksheetIndex] = useState(0);
   const [settings, setSettings] = useState<AppSettings>({
-    aiConfig: { provider: 'gemini', apiKey: '', model: 'gemini-3-flash-preview', enabled: false },
+    aiConfig: { provider: 'deepseek', apiKey: '', model: 'deepseek-v4-pro', enabled: false },
     difficulty: 'B2',
     teacherName: '',
     showKeys: true,
@@ -2699,14 +2679,12 @@ export default function App() {
 }
 ```
 
-注意：以上 App.tsx 是一个简化骨架，完整迁移需要把现有的 `handleExportHTML`、styles、以及 WorksheetPaper 的导入也正确处理。具体实现时，确保所有原有功能（export HTML、print styles）都保留。
-
-- [ ] **Step 2: 验证 TypeScript 无错误**
+注意：以�?App.tsx 是一个简化骨架，完整迁移需要把现有�?`handleExportHTML`、styles、以�?WorksheetPaper 的导入也正确处理。具体实现时，确保所有原有功能（export HTML、print styles）都保留�?
+- [ ] **Step 2: 验证 TypeScript 无错�?*
 
 Run: `npx tsc --noEmit`
 
-Expected: 无错误
-
+Expected: 无错�?
 - [ ] **Step 3: Commit**
 
 ```bash
@@ -2716,11 +2694,9 @@ git commit -m "refactor: App.tsx uses Project state, integrates validation and s
 
 ---
 
-## Task 16: 集成验证与最终测试
-
+## Task 16: 集成验证与最终测�?
 **Files:**
-- Modify: `src/App.tsx`（debounced auto-save）
-
+- Modify: `src/App.tsx`（debounced auto-save�?
 - [ ] **Step 1: 添加 debounced auto-save effect**
 
 In `src/App.tsx`, add after state declarations:
@@ -2735,19 +2711,15 @@ useEffect(() => {
 }, [project]);
 ```
 
-- [ ] **Step 2: 端到端测试**
+- [ ] **Step 2: 端到端测�?*
 
 1. Run: `npm run electron:dev`
-2. 在 AI Configuration 中填入 Gemini API Key，点击 Save Config
+2. �?AI Configuration 中填�?DeepSeek API Key，点�?Save Config
 3. 粘贴一篇英文文章到 Article Text
-4. 选择难度 B2，点击 Generate Worksheet
-5. 观察 ValidationPanel：
-   - 如果 AI 输出规范，应显示 ✅
-   - 如果有 warning，应显示 ⚠️ 列表
-   - 如果有 error，应显示错误列表和 Regenerate / Force Use 按钮
-6. 编辑任意题目文本，等待 500ms，确认自动保存（查看 `userData/documents/` 下是否有 JSON 文件生成）
-7. 在 ProjectPanel 中查看项目列表，点击加载，确认数据恢复
-8. 切换 API Provider（DeepSeek / Kimi），确认配置独立保存
+4. 选择难度 B2，点�?Generate Worksheet
+5. 观察 ValidationPanel�?   - 如果 AI 输出规范，应显示 �?   - 如果�?warning，应显示 ⚠️ 列表
+   - 如果�?error，应显示错误列表�?Regenerate / Force Use 按钮
+6. 编辑任意题目文本，等�?500ms，确认自动保存（查看 `userData/documents/` 下是否有 JSON 文件生成�?7. �?ProjectPanel 中查看项目列表，点击加载，确认数据恢�?8. 切换 API Provider（DeepSeek / Kimi），确认配置独立保存
 
 - [ ] **Step 3: 运行全部单元测试**
 
@@ -2770,7 +2742,7 @@ git commit -m "feat: add debounced auto-save and complete integration"
 
 | Spec Requirement | Task(s) |
 |------------------|---------|
-| 按 provider 独立存储 API key | Task 3 (configService), Task 10 (ConfigPanel) |
+| �?provider 独立存储 API key | Task 3 (configService), Task 10 (ConfigPanel) |
 | 支持 custom provider | Task 3, Task 8 (aiService baseUrl) |
 | Test Connection 按钮 | Task 10 (ConfigPanel) |
 | 题目结构校验 | Task 4 (validators), Task 5 (validatorService) |
@@ -2779,20 +2751,18 @@ git commit -m "feat: add debounced auto-save and complete integration"
 | 标准范例 | Task 9 |
 | 难度 A2/B1/B2/C1 | Task 11 (InputSection), Task 15 (App.tsx) |
 | 本地项目存档（文件系统） | Task 6 (Electron IPC), Task 7 (storageService) |
-| Project 粒度（文章 + 多套测试卷） | Task 1 (types), Task 15 (App.tsx) |
+| Project 粒度（文�?+ 多套测试卷） | Task 1 (types), Task 15 (App.tsx) |
 | 自动保存 | Task 15, Task 16 |
 | 项目导入/导出 | Task 13 (ProjectPanel) |
 
 ## Placeholder Scan
 
-- 无 TBD/TODO
-- 无 "implement later"
+- �?TBD/TODO
+- �?"implement later"
 - 所有测试包含具体断言
-- 所有组件包含完整 JSX
+- 所有组件包含完�?JSX
 
 ## Type Consistency Check
 
-- `AIProvider` 统一为 `'gemini' | 'deepseek' | 'kimi' | 'custom'`
-- `WorksheetData._meta` 在所有位置结构一致
-- `Project` 接口在 storageService 和 App.tsx 中一致
-- `ValidationResult` 在 validatorService 和 ValidationPanel 中一致
+- `AIProvider` 统一�?`'deepseek' | 'kimi' | 'custom'`
+- `WorksheetData._meta` 在所有位置结构一�?- `Project` 接口�?storageService �?App.tsx 中一�?- `ValidationResult` �?validatorService �?ValidationPanel 中一�?

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { ValidationResult } from '../types';
 
 interface ValidationPanelProps {
@@ -8,6 +8,7 @@ interface ValidationPanelProps {
 }
 
 export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetry, onForceUse }) => {
+  const [showWarnings, setShowWarnings] = useState(false);
   if (!result) return null;
 
   const errors = result.issues.filter(i => i.severity === 'error');
@@ -16,16 +17,28 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetr
   if (result.valid && warnings.length === 0) {
     return (
       <div className="bg-green-50 border border-green-200 rounded p-3 text-green-700 text-xs font-bold flex items-center gap-2">
-        <span>✓</span> Worksheet validated successfully
+        <span>OK</span> Worksheet validated successfully
       </div>
     );
   }
 
   return (
     <div className={`rounded border p-3 text-xs ${errors.length > 0 ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
-      <div className="font-bold mb-2 flex items-center gap-2">
-        <span>{errors.length > 0 ? '⚠' : '◉'}</span>
-        {errors.length > 0 ? `Validation failed: ${errors.length} error(s)` : `${warnings.length} warning(s)`}
+      <div className="font-bold mb-2 flex items-center justify-between gap-2">
+        <span>
+          {errors.length > 0
+            ? `Validation failed: ${errors.length} error(s)`
+            : `${warnings.length} warning(s) hidden`}
+        </span>
+        {warnings.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowWarnings(v => !v)}
+            className="px-2 py-1 rounded bg-white/70 border border-yellow-200 text-yellow-800 hover:bg-white"
+          >
+            {showWarnings ? 'Hide details' : 'Show details'}
+          </button>
+        )}
       </div>
 
       {errors.length > 0 && (
@@ -35,21 +48,21 @@ export const ValidationPanel: React.FC<ValidationPanelProps> = ({ result, onRetr
             {errors.map((e, i) => (
               <li key={i}>
                 [{e.section}] {e.message}
-                {e.suggestion && <span className="block text-red-600 ml-4">→ {e.suggestion}</span>}
+                {e.suggestion && <span className="block text-red-600 ml-4">{'->'} {e.suggestion}</span>}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {warnings.length > 0 && (
-        <div className="mb-2">
+      {warnings.length > 0 && showWarnings && (
+        <div className="mb-2 max-h-56 overflow-y-auto pr-1">
           <div className="font-bold text-yellow-700 mb-1">Warnings:</div>
           <ul className="list-disc list-inside space-y-1 text-yellow-700">
             {warnings.map((w, i) => (
               <li key={i}>
                 [{w.section}] {w.message}
-                {w.suggestion && <span className="block text-yellow-600 ml-4">→ {w.suggestion}</span>}
+                {w.suggestion && <span className="block text-yellow-600 ml-4">{'->'} {w.suggestion}</span>}
               </li>
             ))}
           </ul>

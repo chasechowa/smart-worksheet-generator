@@ -34,9 +34,9 @@ describe('configService', () => {
     initDefaultConfigs();
     const configs = getStoredConfigs();
     expect(configs).not.toBeNull();
-    expect(configs!.activeProvider).toBe('gemini');
-    expect(configs!.providers.gemini).toBeDefined();
-    expect(configs!.providers.gemini.enabled).toBe(false);
+    expect(configs!.activeProvider).toBe('deepseek');
+    expect(configs!.providers.deepseek).toBeDefined();
+    expect(configs!.providers.deepseek.enabled).toBe(false);
   });
 
   it('should save and retrieve provider config', () => {

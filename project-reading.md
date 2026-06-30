@@ -56,7 +56,6 @@ Difficulty levels are `A2`, `B1`, `B2`, and `C1`. The difficulty-specific constr
 
 Supported providers are defined in `types.ts`:
 
-- Gemini.
 - DeepSeek.
 - Kimi.
 - Custom OpenAI-compatible endpoint.

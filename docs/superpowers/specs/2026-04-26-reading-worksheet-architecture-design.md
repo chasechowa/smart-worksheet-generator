@@ -1,59 +1,53 @@
-# 阅读出题系统架构重构设计
+﻿# 闃呰鍑洪绯荤粺鏋舵瀯閲嶆瀯璁捐
 
 ## Overview
 
-将现有的 Smart Worksheet Generator（Electron + React 阅读理解 worksheet 生成器）按 VocabForge AI 的架构模式进行重构，保留核心阅读出题逻辑，增强 API 配置管理、题目质量校验、本地持久化三大能力。
-
+灏嗙幇鏈夌殑 Smart Worksheet Generator锛圗lectron + React 闃呰鐞嗚В worksheet 鐢熸垚鍣級鎸?VocabForge AI 鐨勬灦鏋勬ā寮忚繘琛岄噸鏋勶紝淇濈暀鏍稿績闃呰鍑洪閫昏緫锛屽寮?API 閰嶇疆绠＄悊銆侀鐩川閲忔牎楠屻€佹湰鍦版寔涔呭寲涓夊ぇ鑳藉姏銆?
 ## Goals
 
-1. **多 Provider API 管理**：按 provider 独立存储配置，支持 custom OpenAI-compatible 接口，带连接测试
-2. **题目标准校验**：内置规则引擎和自动修正，防止 AI 输出偏离规范
-3. **难度分级控制**：保留现有 A2/B1/B2/C1 体系，在 prompt 和校验层细化区分
-4. **本地项目存档**：基于 Electron 文件系统 API，Project 粒度持久化（文章 + 多套测试卷）
+1. **澶?Provider API 绠＄悊**锛氭寜 provider 鐙珛瀛樺偍閰嶇疆锛屾敮鎸?custom OpenAI-compatible 鎺ュ彛锛屽甫杩炴帴娴嬭瘯
+2. **棰樼洰鏍囧噯鏍￠獙**锛氬唴缃鍒欏紩鎿庡拰鑷姩淇锛岄槻姝?AI 杈撳嚭鍋忕瑙勮寖
+3. **闅惧害鍒嗙骇鎺у埗**锛氫繚鐣欑幇鏈?A2/B1/B2/C1 浣撶郴锛屽湪 prompt 鍜屾牎楠屽眰缁嗗寲鍖哄垎
+4. **鏈湴椤圭洰瀛樻。**锛氬熀浜?Electron 鏂囦欢绯荤粺 API锛孭roject 绮掑害鎸佷箙鍖栵紙鏂囩珷 + 澶氬娴嬭瘯鍗凤級
 
 ## Architecture
 
-保留现有技术栈：**Electron 35 + Vite 6 + React 19 + TypeScript + Tailwind CSS**。
+淇濈暀鐜版湁鎶€鏈爤锛?*Electron 35 + Vite 6 + React 19 + TypeScript + Tailwind CSS**銆?
+鍦?Renderer 杩涚▼鏂板鍥涗釜鏍稿績鏈嶅姟灞傦細
 
-在 Renderer 进程新增四个核心服务层：
-
-| 服务 | 职责 |
+| 鏈嶅姟 | 鑱岃矗 |
 |------|------|
-| `configService` | 多 Provider API 配置管理（读/写/切换/验证） |
-| `aiService` | 保留现有生成逻辑，配置来源改为 `configService` |
-| `validatorService` | 对 AI 返回的 `WorksheetData` 执行结构和规则校验 |
-| `storageService` | 通过 IPC 调用 Main 进程 `fs` API，管理本地项目文件 |
+| `configService` | 澶?Provider API 閰嶇疆绠＄悊锛堣/鍐?鍒囨崲/楠岃瘉锛?|
+| `aiService` | 淇濈暀鐜版湁鐢熸垚閫昏緫锛岄厤缃潵婧愭敼涓?`configService` |
+| `validatorService` | 瀵?AI 杩斿洖鐨?`WorksheetData` 鎵ц缁撴瀯鍜岃鍒欐牎楠?|
+| `storageService` | 閫氳繃 IPC 璋冪敤 Main 杩涚▼ `fs` API锛岀鐞嗘湰鍦伴」鐩枃浠?|
 
-Electron Main 进程新增 IPC 通道：`fs:read`, `fs:write`, `fs:list`, `fs:delete`，在 `userData/documents/` 目录下操作 JSON 项目文件。
-
-### 数据流
-
-1. 用户粘贴文章 → 选择难度 → 点击生成
-2. `aiService` 从 `configService` 取当前 provider 配置 → 拼接 prompt → 通过 IPC proxy 调用 AI
-3. AI 返回 JSON → `validatorService` 执行结构 + 规则校验
-4. 校验结果：
-   - **通过**：写入 `_meta.validated = true`，渲染编辑器，自动保存到当前 Project
-   - **未通过**：弹窗列出具体问题，提供"重新生成"或"强制使用"
-5. 用户编辑/导出时，`storageService` 自动写回本地 JSON
+Electron Main 杩涚▼鏂板 IPC 閫氶亾锛歚fs:read`, `fs:write`, `fs:list`, `fs:delete`锛屽湪 `userData/documents/` 鐩綍涓嬫搷浣?JSON 椤圭洰鏂囦欢銆?
+### 鏁版嵁娴?
+1. 鐢ㄦ埛绮樿创鏂囩珷 鈫?閫夋嫨闅惧害 鈫?鐐瑰嚮鐢熸垚
+2. `aiService` 浠?`configService` 鍙栧綋鍓?provider 閰嶇疆 鈫?鎷兼帴 prompt 鈫?閫氳繃 IPC proxy 璋冪敤 AI
+3. AI 杩斿洖 JSON 鈫?`validatorService` 鎵ц缁撴瀯 + 瑙勫垯鏍￠獙
+4. 鏍￠獙缁撴灉锛?   - **閫氳繃**锛氬啓鍏?`_meta.validated = true`锛屾覆鏌撶紪杈戝櫒锛岃嚜鍔ㄤ繚瀛樺埌褰撳墠 Project
+   - **鏈€氳繃**锛氬脊绐楀垪鍑哄叿浣撻棶棰橈紝鎻愪緵"閲嶆柊鐢熸垚"鎴?寮哄埗浣跨敤"
+5. 鐢ㄦ埛缂栬緫/瀵煎嚭鏃讹紝`storageService` 鑷姩鍐欏洖鏈湴 JSON
 
 ## Data Model
 
-### AIConfig（增强）
+### AIConfig锛堝寮猴級
 
 ```ts
-type AIProvider = 'gemini' | 'deepseek' | 'kimi' | 'custom';
+type AIProvider = 'deepseek' | 'kimi' | 'custom';
 
 interface AIConfig {
   provider: AIProvider;
   apiKey: string;
   model: string;
-  baseUrl?: string;      // custom provider 必填
+  baseUrl?: string;      // custom provider 蹇呭～
   enabled: boolean;
 }
 ```
 
-### ProviderConfigs（localStorage 存储结构）
-
+### ProviderConfigs锛坙ocalStorage 瀛樺偍缁撴瀯锛?
 ```ts
 interface ProviderConfigs {
   activeProvider: AIProvider;
@@ -61,15 +55,14 @@ interface ProviderConfigs {
 }
 ```
 
-存储键名：`vocabforge_ai_keys`。每个 provider 独立保存，切换时不丢失已填的 key。
-
-### Project（本地存档单元）
+瀛樺偍閿悕锛歚vocabforge_ai_keys`銆傛瘡涓?provider 鐙珛淇濆瓨锛屽垏鎹㈡椂涓嶄涪澶卞凡濉殑 key銆?
+### Project锛堟湰鍦板瓨妗ｅ崟鍏冿級
 
 ```ts
 interface Project {
   id: string;            // uuid
   title: string;
-  articleText: string;   // 完整原始文章
+  articleText: string;   // 瀹屾暣鍘熷鏂囩珷
   difficulty: Difficulty;
   createdAt: number;
   updatedAt: number;
@@ -77,7 +70,7 @@ interface Project {
 }
 ```
 
-### WorksheetData（保留现有结构，增加元数据）
+### WorksheetData锛堜繚鐣欑幇鏈夌粨鏋勶紝澧炲姞鍏冩暟鎹級
 
 ```ts
 interface WorksheetData {
@@ -98,8 +91,7 @@ interface WorksheetData {
 }
 ```
 
-现有子类型（`MCQuestion`, `SyntaxDeconstructionItem`, `ExpansionItem`, `Keys` 等）全部保留，不做破坏性修改。
-
+鐜版湁瀛愮被鍨嬶紙`MCQuestion`, `SyntaxDeconstructionItem`, `ExpansionItem`, `Keys` 绛夛級鍏ㄩ儴淇濈暀锛屼笉鍋氱牬鍧忔€т慨鏀广€?
 ## API Configuration System
 
 ### configService API
@@ -114,29 +106,22 @@ validateConfig(config: AIConfig): { valid: boolean; error?: string }
 testConnection(config: AIConfig): Promise<{ success: boolean; error?: string }>
 ```
 
-### UI 配置面板
+### UI 閰嶇疆闈㈡澘
 
-替换现有 sidebar 中的简单三字段表单，改为：
+鏇挎崲鐜版湁 sidebar 涓殑绠€鍗曚笁瀛楁琛ㄥ崟锛屾敼涓猴細
 
-- Provider 下拉切换（Gemini / DeepSeek / Kimi / Custom）
-- 切换后动态加载该 provider 的已存配置
-- 模型下拉（预置各 provider 的默认模型列表）
-- API Key 输入框
-- Custom provider 额外显示 Base URL 输入框
-- **Test Connection** 按钮：发轻量请求验证 key（Gemini 用 list models，OpenAI-compatible 用简单 completion）
-- Save Config 后才写入 localStorage
+- Provider dropdown: DeepSeek / Kimi / Custom. Switching providers loads the saved config and model list for that provider.
+- API Key input. Custom provider also shows Base URL input. Test Connection sends a minimal OpenAI-compatible completion request. Save Config writes to localStorage.
 
-### Main 进程 Proxy 增强
+### Main 杩涚▼ Proxy 澧炲己
 
-保留现有 `api-call` IPC，增加：
-- Custom provider 的 `baseUrl` 合法性校验（必须以 `http(s)://` 开头）
-- 开发模式下可选请求日志
-
-所有 OpenAI-compatible provider（DeepSeek / Kimi / Custom）共用同一套 `callOpenAICompatible` 调用逻辑，`baseUrl` 由 `PROVIDER_BASE_URLS` 或用户自定义提供。
-
+淇濈暀鐜版湁 `api-call` IPC锛屽鍔狅細
+- Custom provider 鐨?`baseUrl` 鍚堟硶鎬ф牎楠岋紙蹇呴』浠?`http(s)://` 寮€澶达級
+- 寮€鍙戞ā寮忎笅鍙€夎姹傛棩蹇?
+鎵€鏈?OpenAI-compatible provider锛圖eepSeek / Kimi / Custom锛夊叡鐢ㄥ悓涓€濂?`callOpenAICompatible` 璋冪敤閫昏緫锛宍baseUrl` 鐢?`PROVIDER_BASE_URLS` 鎴栫敤鎴疯嚜瀹氫箟鎻愪緵銆?
 ## Question Validation System
 
-### 核心设计
+### 鏍稿績璁捐
 
 ```ts
 interface ValidationIssue {
@@ -148,78 +133,63 @@ interface ValidationIssue {
 }
 
 interface ValidationResult {
-  valid: boolean;          // error 数为 0 时 true
+  valid: boolean;          // error 鏁颁负 0 鏃?true
   issues: ValidationIssue[];
   autoFixed: boolean;
-  data: WorksheetData;     // 经自动修正后的数据
-}
+  data: WorksheetData;     // 缁忚嚜鍔ㄤ慨姝ｅ悗鐨勬暟鎹?}
 ```
 
-入口：
-```ts
+鍏ュ彛锛?```ts
 validateWorksheet(data: WorksheetData, articleText: string): ValidationResult
 ```
 
-### 校验规则（按题型）
-
+### 鏍￠獙瑙勫垯锛堟寜棰樺瀷锛?
 **Global**
-- `title` 非空
-- `articleSnippet` 非空
-- `keys` 存在且字段完整
-
+- `title` 闈炵┖
+- `articleSnippet` 闈炵┖
+- `keys` 瀛樺湪涓斿瓧娈靛畬鏁?
 **Summary Completion**
-- `[BLANK]` 出现次数 === `blanks` 长度 === `keys.summary` 长度
-- 每个答案在 `articleText` 中可找到（允许大小写/标点差异）
-- 每个答案词数 ≤ 3
+- `[BLANK]` 鍑虹幇娆℃暟 === `blanks` 闀垮害 === `keys.summary` 闀垮害
+- 姣忎釜绛旀鍦?`articleText` 涓彲鎵惧埌锛堝厑璁稿ぇ灏忓啓/鏍囩偣宸紓锛?- 姣忎釜绛旀璇嶆暟 鈮?3
 
 **Multiple Choice**
-- 总题数 === 10
-- 每题恰好 4 个选项
-- 题型分布：`Finding Evidence` 恰好 2 道；`Vocabulary in Context` ≤ 1 道
-- 选项不能带 `A.`/`B.`/`1.` 等前缀 → **自动修正**
-- `answer` 必须是 `options` 之一 → **自动修正（模糊匹配）**
-- `answer` 值应为字母 A/B/C/D → **自动修正（选项文本转字母）**
-- 答案均匀分布 A/B/C/D（各 2-3 个）→ **warning**
-- 选项长度差异不超过 50% → **warning**
-- `explanation` 非空
+- 鎬婚鏁?=== 10
+- 姣忛鎭板ソ 4 涓€夐」
+- 棰樺瀷鍒嗗竷锛歚Finding Evidence` 鎭板ソ 2 閬擄紱`Vocabulary in Context` 鈮?1 閬?- 閫夐」涓嶈兘甯?`A.`/`B.`/`1.` 绛夊墠缂€ 鈫?**鑷姩淇**
+- `answer` 蹇呴』鏄?`options` 涔嬩竴 鈫?**鑷姩淇锛堟ā绯婂尮閰嶏級**
+- `answer` 鍊煎簲涓哄瓧姣?A/B/C/D 鈫?**鑷姩淇锛堥€夐」鏂囨湰杞瓧姣嶏級**
+- 绛旀鍧囧寑鍒嗗竷 A/B/C/D锛堝悇 2-3 涓級鈫?**warning**
+- 閫夐」闀垮害宸紓涓嶈秴杩?50% 鈫?**warning**
+- `explanation` 闈炵┖
 
 **Syntax Deconstruction**
-- 恰好 2 题
-- `original` 在 `articleText` 中相似度 > 80%
-- `answer` 非空
+- 鎭板ソ 2 棰?- `original` 鍦?`articleText` 涓浉浼煎害 > 80%
+- `answer` 闈炵┖
 
 **Writing Workshop**
-- Expansion：恰好 4 题，`conjunctions` 每题至少 1 个
-- Keywords：恰好 5 个，每词在 `articleText` 中出现
-- Q&A：恰好 4 题
-- Critical Thinking：非空字符串
+- Expansion锛氭伆濂?4 棰橈紝`conjunctions` 姣忛鑷冲皯 1 涓?- Keywords锛氭伆濂?5 涓紝姣忚瘝鍦?`articleText` 涓嚭鐜?- Q&A锛氭伆濂?4 棰?- Critical Thinking锛氶潪绌哄瓧绗︿覆
 
 **Keys**
-- 各 section key 数量与对应题目数量一致
+- 鍚?section key 鏁伴噺涓庡搴旈鐩暟閲忎竴鑷?
+### 鑷姩淇绛栫暐
 
-### 自动修正策略
-
-| 问题 | 修正方式 |
+| 闂 | 淇鏂瑰紡 |
 |------|----------|
-| 选项带前缀 | 正则去除 `A.`/`B)`/`1.` 等 |
-| MC answer 是选项文本 | 匹配索引转 A/B/C/D |
-| summary blanks/keys 长度不一致但 paragraph 匹配 | 以 paragraph 为准重新对齐 |
+| 閫夐」甯﹀墠缂€ | 姝ｅ垯鍘婚櫎 `A.`/`B)`/`1.` 绛?|
+| MC answer 鏄€夐」鏂囨湰 | 鍖归厤绱㈠紩杞?A/B/C/D |
+| summary blanks/keys 闀垮害涓嶄竴鑷翠絾 paragraph 鍖归厤 | 浠?paragraph 涓哄噯閲嶆柊瀵归綈 |
 
-无法自动修正的（题数不对、答案分布不均等）作为 error/warning 展示。
+鏃犳硶鑷姩淇鐨勶紙棰樻暟涓嶅銆佺瓟妗堝垎甯冧笉鍧囩瓑锛変綔涓?error/warning 灞曠ず銆?
+### 鏍囧噯鑼冧緥
 
-### 标准范例
-
-内置两套 hand-crafted 范例 JSON 于 `src/data/standard-examples/`：
-- `example-b2-sat.json`
+鍐呯疆涓ゅ hand-crafted 鑼冧緥 JSON 浜?`src/data/standard-examples/`锛?- `example-b2-sat.json`
 - `example-c1-ielts.json`
 
-用途：结构参照、规则阈值校准（如选项长度差异 50% 为经验值）、校验器单元测试。
+鐢ㄩ€旓細缁撴瀯鍙傜収銆佽鍒欓槇鍊兼牎鍑嗭紙濡傞€夐」闀垮害宸紓 50% 涓虹粡楠屽€硷級銆佹牎楠屽櫒鍗曞厓娴嬭瘯銆?
+### UI 鍙嶉
 
-### UI 反馈
-
-- 全部通过：状态栏 ✅ 已校验
-- 有 warning：状态栏 ⚠️ n warnings，可展开查看
-- 有 error：拦截弹窗，列出 error + suggestion，提供"重新生成"/"强制使用"
+- 鍏ㄩ儴閫氳繃锛氱姸鎬佹爮 鉁?宸叉牎楠?- 鏈?warning锛氱姸鎬佹爮 鈿狅笍 n warnings锛屽彲灞曞紑鏌ョ湅
+- 鏈?error锛氭嫤鎴脊绐楋紝鍒楀嚭 error + suggestion锛屾彁渚?閲嶆柊鐢熸垚"/"寮哄埗浣跨敤"
 
 ## Local Persistence System
 
@@ -230,99 +200,80 @@ getProjects(): Promise<ProjectMeta[]>
 getProject(id: string): Promise<Project>
 saveProject(project: Project): Promise<void>
 deleteProject(id: string): Promise<void>
-exportProject(project: Project): string        // JSON 字符串
-importProject(json: string): Project
+exportProject(project: Project): string        // JSON 瀛楃涓?importProject(json: string): Project
 ```
 
-### Electron Main 进程文件操作
+### Electron Main 杩涚▼鏂囦欢鎿嶄綔
 
-存储目录：`app.getPath('userData')/documents/`
+瀛樺偍鐩綍锛歚app.getPath('userData')/documents/`
 
-- `fs:list`：读取目录下所有 `.json`，解析为 `ProjectMeta` 列表（按 `updatedAt` 降序）
-- `fs:read(id)`：读取 `{id}.json`
-- `fs:write(project)`：序列化写入 `{project.id}.json`
-- `fs:delete(id)`：删除 `{id}.json`
+- `fs:list`锛氳鍙栫洰褰曚笅鎵€鏈?`.json`锛岃В鏋愪负 `ProjectMeta` 鍒楄〃锛堟寜 `updatedAt` 闄嶅簭锛?- `fs:read(id)`锛氳鍙?`{id}.json`
+- `fs:write(project)`锛氬簭鍒楀寲鍐欏叆 `{project.id}.json`
+- `fs:delete(id)`锛氬垹闄?`{id}.json`
 
-### 项目文件格式
+### 椤圭洰鏂囦欢鏍煎紡
 
-每项目一个 JSON 文件：`{uuid}.json`
+姣忛」鐩竴涓?JSON 鏂囦欢锛歚{uuid}.json`
 
-包含完整 `Project` 结构（含 `articleText` 和 `worksheets` 数组）。
+鍖呭惈瀹屾暣 `Project` 缁撴瀯锛堝惈 `articleText` 鍜?`worksheets` 鏁扮粍锛夈€?
+### 鑷姩淇濆瓨绛栫暐
 
-### 自动保存策略
+- **棣栨鐢熸垚**锛氭牎楠岄€氳繃鍚庤嚜鍔ㄥ垱寤?Project 骞朵繚瀛?- **缂栬緫鏃?*锛歟ditor 妯″紡涓?debounce 500ms 鑷姩 `saveProject`
+- **鍏抽棴鍓?*锛歚beforeunload` flush 鏈繚瀛樻洿鏀?- **鎵嬪姩淇濆瓨**锛歴idebar 鎻愪緵 馃捑 Save 鎸夐挳
 
-- **首次生成**：校验通过后自动创建 Project 并保存
-- **编辑时**：editor 模式下 debounce 500ms 自动 `saveProject`
-- **关闭前**：`beforeunload` flush 未保存更改
-- **手动保存**：sidebar 提供 💾 Save 按钮
+### UI 瀛樻。绠＄悊
 
-### UI 存档管理
-
-Sidebar 新增 Projects 区域：
-- New Project 按钮
-- 项目列表（标题 + 难度 + worksheet 数 + 编辑/删除按钮）
-- Export All 按钮（导出所有项目 JSON 的 zip）
-- 支持从文件导入项目（拖放或选择文件）
-
+Sidebar 鏂板 Projects 鍖哄煙锛?- New Project 鎸夐挳
+- 椤圭洰鍒楄〃锛堟爣棰?+ 闅惧害 + worksheet 鏁?+ 缂栬緫/鍒犻櫎鎸夐挳锛?- Export All 鎸夐挳锛堝鍑烘墍鏈夐」鐩?JSON 鐨?zip锛?- 鏀寔浠庢枃浠跺鍏ラ」鐩紙鎷栨斁鎴栭€夋嫨鏂囦欢锛?
 ## File Structure
 
 ```
-├── electron/
-│   ├── main.ts              # BrowserWindow + IPC (api-call + fs:*)
-│   └── preload.ts           # contextBridge expose (api-call + fs:*)
-├── src/
-│   ├── main.tsx             # React 入口
-│   ├── App.tsx              # 全局状态 + 布局骨架（大幅瘦身）
-│   ├── types.ts             # 全部类型定义（追加新类型）
-│   ├── index.css            # 全局样式 + 动画
-│   ├── components/
-│   │   ├── InputSection.tsx         # 文章输入、难度、生成按钮
-│   │   ├── TestPreview.tsx          # 测试卷渲染/编辑（原 WorksheetPaper）
-│   │   ├── SectionTogglePanel.tsx   # 题型开关与排序
-│   │   ├── ConfigPanel.tsx          # AI Provider 配置面板
-│   │   ├── ProjectPanel.tsx         # 项目列表与管理
-│   │   ├── ValidationPanel.tsx      # 校验结果展示
-│   │   └── EditorSection.tsx        # 通用折叠面板壳子
-│   ├── services/
-│   │   ├── aiService.ts             #  worksheet 生成（保留核心逻辑）
-│   │   ├── configService.ts         #  Provider 配置管理
-│   │   ├── validatorService.ts      #  校验入口与编排
-│   │   ├── storageService.ts        #  本地文件管理（Renderer 侧）
-│   │   └── geminiService.ts         #  Gemini 专用流式接口（预留）
-│   ├── validators/
-│   │   ├── index.ts                 # 校验器编排
-│   │   ├── summaryValidator.ts
-│   │   ├── mcValidator.ts
-│   │   ├── syntaxValidator.ts
-│   │   ├── writingValidator.ts
-│   │   └── keysValidator.ts
-│   ├── data/
-│   │   └── standard-examples/
-│   │       ├── example-b2-sat.json
-│   │       └── example-c1-ielts.json
-│   └── utils/
-│       └── pdfExport.ts             # PDF 导出预留
-├── index.html
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+鈹溾攢鈹€ electron/
+鈹?  鈹溾攢鈹€ main.ts              # BrowserWindow + IPC (api-call + fs:*)
+鈹?  鈹斺攢鈹€ preload.ts           # contextBridge expose (api-call + fs:*)
+鈹溾攢鈹€ src/
+鈹?  鈹溾攢鈹€ main.tsx             # React 鍏ュ彛
+鈹?  鈹溾攢鈹€ App.tsx              # 鍏ㄥ眬鐘舵€?+ 甯冨眬楠ㄦ灦锛堝ぇ骞呯槮韬級
+鈹?  鈹溾攢鈹€ types.ts             # 鍏ㄩ儴绫诲瀷瀹氫箟锛堣拷鍔犳柊绫诲瀷锛?鈹?  鈹溾攢鈹€ index.css            # 鍏ㄥ眬鏍峰紡 + 鍔ㄧ敾
+鈹?  鈹溾攢鈹€ components/
+鈹?  鈹?  鈹溾攢鈹€ InputSection.tsx         # 鏂囩珷杈撳叆銆侀毦搴︺€佺敓鎴愭寜閽?鈹?  鈹?  鈹溾攢鈹€ TestPreview.tsx          # 娴嬭瘯鍗锋覆鏌?缂栬緫锛堝師 WorksheetPaper锛?鈹?  鈹?  鈹溾攢鈹€ SectionTogglePanel.tsx   # 棰樺瀷寮€鍏充笌鎺掑簭
+鈹?  鈹?  鈹溾攢鈹€ ConfigPanel.tsx          # AI Provider 閰嶇疆闈㈡澘
+鈹?  鈹?  鈹溾攢鈹€ ProjectPanel.tsx         # 椤圭洰鍒楄〃涓庣鐞?鈹?  鈹?  鈹溾攢鈹€ ValidationPanel.tsx      # 鏍￠獙缁撴灉灞曠ず
+鈹?  鈹?  鈹斺攢鈹€ EditorSection.tsx        # 閫氱敤鎶樺彔闈㈡澘澹冲瓙
+鈹?  鈹溾攢鈹€ services/
+鈹?  鈹?  鈹溾攢鈹€ aiService.ts             #  worksheet 鐢熸垚锛堜繚鐣欐牳蹇冮€昏緫锛?鈹?  鈹?  鈹溾攢鈹€ configService.ts         #  Provider 閰嶇疆绠＄悊
+鈹?  鈹?  鈹溾攢鈹€ validatorService.ts      #  鏍￠獙鍏ュ彛涓庣紪鎺?鈹?  鈹?  鈹溾攢鈹€ storageService.ts        #  鏈湴鏂囦欢绠＄悊锛圧enderer 渚э級
+鈹?  鈹?  鈹斺攢鈹€ deepseekService.ts         #  DeepSeek 涓撶敤娴佸紡鎺ュ彛锛堥鐣欙級
+鈹?  鈹溾攢鈹€ validators/
+鈹?  鈹?  鈹溾攢鈹€ index.ts                 # 鏍￠獙鍣ㄧ紪鎺?鈹?  鈹?  鈹溾攢鈹€ summaryValidator.ts
+鈹?  鈹?  鈹溾攢鈹€ mcValidator.ts
+鈹?  鈹?  鈹溾攢鈹€ syntaxValidator.ts
+鈹?  鈹?  鈹溾攢鈹€ writingValidator.ts
+鈹?  鈹?  鈹斺攢鈹€ keysValidator.ts
+鈹?  鈹溾攢鈹€ data/
+鈹?  鈹?  鈹斺攢鈹€ standard-examples/
+鈹?  鈹?      鈹溾攢鈹€ example-b2-sat.json
+鈹?  鈹?      鈹斺攢鈹€ example-c1-ielts.json
+鈹?  鈹斺攢鈹€ utils/
+鈹?      鈹斺攢鈹€ pdfExport.ts             # PDF 瀵煎嚭棰勭暀
+鈹溾攢鈹€ index.html
+鈹溾攢鈹€ package.json
+鈹溾攢鈹€ tsconfig.json
+鈹斺攢鈹€ vite.config.ts
 ```
 
 ## Migration Plan
 
-| 现有文件 | 处理方式 |
+| 鐜版湁鏂囦欢 | 澶勭悊鏂瑰紡 |
 |----------|----------|
-| `electron/main.js` | 改为 `.ts`，新增 `fs:*` IPC handlers |
-| `electron/preload.js` | 改为 `.ts`，暴露 `fs:*` API |
-| `App.tsx` | 瘦身：保留全局状态与布局，UI 逻辑拆至 components |
-| `services/aiService.ts` | 保留生成逻辑，`getStoredConfig` 等移至 `configService` |
-| `types.ts` | 追加 `Project`, `ProviderConfigs`, `ValidationResult` 等 |
-| `components/EditorSection.tsx` | 保留 |
+| `electron/main.js` | 鏀逛负 `.ts`锛屾柊澧?`fs:*` IPC handlers |
+| `electron/preload.js` | 鏀逛负 `.ts`锛屾毚闇?`fs:*` API |
+| `App.tsx` | 鐦﹁韩锛氫繚鐣欏叏灞€鐘舵€佷笌甯冨眬锛孶I 閫昏緫鎷嗚嚦 components |
+| `services/aiService.ts` | 淇濈暀鐢熸垚閫昏緫锛宍getStoredConfig` 绛夌Щ鑷?`configService` |
+| `types.ts` | 杩藉姞 `Project`, `ProviderConfigs`, `ValidationResult` 绛?|
+| `components/EditorSection.tsx` | 淇濈暀 |
 
 ## Key Decisions
 
-1. **localStorage 只存配置，项目数据走文件系统**：避免 localStorage 容量限制，存档更可靠
-2. **Project 粒度 = 文章 + 多套测试卷**：支持同一篇文章生成多个版本或修改后另存
-3. **校验器按题型拆分文件**：规则独立，便于单测和维护
-4. **保留现有 WorksheetData 结构**：不破坏现有渲染和导出逻辑，降低重构风险
-5. **HTML 导出保留，PDF 预留**：当前 HTML 导出已满足打印需求，jsPDF 可作为后续迭代
+1. **localStorage 鍙瓨閰嶇疆锛岄」鐩暟鎹蛋鏂囦欢绯荤粺**锛氶伩鍏?localStorage 瀹归噺闄愬埗锛屽瓨妗ｆ洿鍙潬
+2. **Project 绮掑害 = 鏂囩珷 + 澶氬娴嬭瘯鍗?*锛氭敮鎸佸悓涓€绡囨枃绔犵敓鎴愬涓増鏈垨淇敼鍚庡彟瀛?3. **鏍￠獙鍣ㄦ寜棰樺瀷鎷嗗垎鏂囦欢**锛氳鍒欑嫭绔嬶紝渚夸簬鍗曟祴鍜岀淮鎶?4. **淇濈暀鐜版湁 WorksheetData 缁撴瀯**锛氫笉鐮村潖鐜版湁娓叉煋鍜屽鍑洪€昏緫锛岄檷浣庨噸鏋勯闄?5. **HTML 瀵煎嚭淇濈暀锛孭DF 棰勭暀**锛氬綋鍓?HTML 瀵煎嚭宸叉弧瓒虫墦鍗伴渶姹傦紝jsPDF 鍙綔涓哄悗缁凯浠?

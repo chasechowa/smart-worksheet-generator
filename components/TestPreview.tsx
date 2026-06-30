@@ -29,6 +29,13 @@ const INTERACTIVE_SCRIPT = `
   });
 `;
 
+const SECTION_INSTRUCTIONS: Record<string, string> = {
+  summary: 'Read the summary and fill in each blank with a word or short phrase from the article. Keep your answers grammatically correct in the sentence.',
+  mc: 'Choose the best answer for each question. Use evidence from the article, not only general knowledge.',
+  syntaxDeconstruction: 'Study the sentence structure carefully. Break down how the key parts of the sentence work together.',
+  writing: 'Use ideas from the article to build stronger sentences and short responses. Focus on clear logic, accurate language, and complete meaning.',
+};
+
 const PrintableField: React.FC<{
   value: string;
   onChange?: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -76,6 +83,32 @@ const PrintableField: React.FC<{
   );
 };
 
+const HeaderLabelField: React.FC<{
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  viewMode: ViewMode;
+}> = ({ value, onChange, placeholder, viewMode }) => {
+  if (viewMode !== 'editor') {
+    return <span>{value || placeholder}</span>;
+  }
+
+  return (
+    <input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      className="bg-transparent editable-field rounded no-print inline-block min-w-0 focus:outline-none focus:ring-1 focus:ring-blue-300"
+      style={{
+        font: 'inherit',
+        letterSpacing: 'inherit',
+        textTransform: 'inherit',
+        width: `${Math.max(5, (value || placeholder).length + 1)}ch`,
+      }}
+    />
+  );
+};
+
 const Toggle: React.FC<{ checked: boolean; onChange: () => void; label?: string; size?: 'sm' | 'xs' }> = ({ checked, onChange, label, size = 'sm' }) => (
   <label className="flex items-center cursor-pointer gap-2">
     <div className="relative">
@@ -105,6 +138,7 @@ const WorksheetPaper: React.FC<{
   
   const isCompact = viewMode === 'print-compact' || viewMode === 'pdf';
   const isInteractive = viewMode === 'interactive';
+  const watermarkText = (settings.watermarkText || '').trim();
   
   const partLabels = useMemo(() => {
     const active = sectionOrder.filter(id => visibleSections.has(id));
@@ -126,6 +160,16 @@ const WorksheetPaper: React.FC<{
   };
 
   const renderSection = (sectionId: string) => {
+    const renderInstruction = (id: string) => {
+      const instruction = SECTION_INSTRUCTIONS[id];
+      if (!instruction) return null;
+      return (
+        <div className="section-instruction">
+          {instruction}
+        </div>
+      );
+    };
+
     switch (sectionId) {
       case 'summary':
         return data.summary && (
@@ -133,6 +177,7 @@ const WorksheetPaper: React.FC<{
             <h2 className="section-title">
               {partLabels['summary']}: 🧩 Summary Completion
             </h2>
+            {renderInstruction('summary')}
             {/* Always show blanks as split text — never raw [BLANK] tokens */}
             {viewMode === 'editor' ? (
               <div className={`text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
@@ -186,6 +231,7 @@ const WorksheetPaper: React.FC<{
              <h2 className="section-title">
               {partLabels['mc']}: 🧠 Logical Analysis
             </h2>
+            {renderInstruction('mc')}
             <div className={isCompact ? 'space-y-3' : 'space-y-6'}>
               {(data.multipleChoice || []).map((q, i) => (
                 <div key={q.id} className="avoid-break mcq-container">
@@ -238,9 +284,7 @@ const WorksheetPaper: React.FC<{
             <h2 className="section-title">
               {partLabels['syntaxDeconstruction']}: 🎨 Syntax Deconstruction
             </h2>
-            <p className="italic text-sm mb-4 text-gray-600">
-              Instruction: Break down the following complex sentences into their component simple clauses.
-            </p>
+            {renderInstruction('syntaxDeconstruction')}
             {(data.syntaxDeconstruction || []).map((p, i) => (
               <div key={p.id} className={`avoid-break ${isCompact ? 'mb-4' : 'mb-8'}`}>
                 <div className="flex gap-2 mb-2">
@@ -276,6 +320,7 @@ const WorksheetPaper: React.FC<{
             <h2 className="section-title">
               {partLabels['writing']}: ✍️ Writing & Logic Workshop
             </h2>
+            {renderInstruction('writing')}
 
             <div className={isCompact ? 'space-y-6' : 'space-y-12'}>
               
@@ -555,6 +600,9 @@ const WorksheetPaper: React.FC<{
 
   return (
     <div className={`paper mx-auto bg-white shadow-sm overflow-hidden ${viewMode === 'editor' ? 'min-h-[29.7cm] max-w-[960px] p-8' : 'max-w-[210mm] p-8 md:p-12'} ${viewMode === 'print-compact' ? 'max-w-[210mm]' : ''}`}>
+      {watermarkText && <div className="print-watermark" aria-hidden="true">{watermarkText}</div>}
+      <div className="print-corner-mark" aria-hidden="true"></div>
+      <div className="relative z-10">
       {/* Header */}
       <div className="worksheet-header mb-8 border-b-2 border-gray-800 pb-5">
           <div className="worksheet-brand">
@@ -578,14 +626,14 @@ const WorksheetPaper: React.FC<{
 
           <div className="worksheet-meta grid grid-cols-3 gap-6 text-sm font-bold text-gray-600 uppercase tracking-wider items-end">
               <div className="worksheet-field flex items-end gap-2">
-                  <span className="shrink-0">
-                    <PrintableField
+                  <span className="shrink-0 whitespace-nowrap inline-flex items-baseline">
+                    <HeaderLabelField
                       value={header.nameLabel}
                       onChange={(e) => updateHeader({ nameLabel: e.target.value })}
                       viewMode={viewMode}
-                      tagName="span"
                       placeholder="Name"
-                    />:
+                    />
+                    <span>:</span>
                   </span>
                   <span className="worksheet-field-line block flex-1 border-b-2 border-gray-300 h-5">
                     {settings.teacherName ? (
@@ -597,14 +645,14 @@ const WorksheetPaper: React.FC<{
                   <span>Level: {settings.difficulty}</span>
               </div>
               <div className="worksheet-field flex items-end gap-2">
-                  <span className="shrink-0">
-                    <PrintableField
+                  <span className="shrink-0 whitespace-nowrap inline-flex items-baseline">
+                    <HeaderLabelField
                       value={header.scoreLabel}
                       onChange={(e) => updateHeader({ scoreLabel: e.target.value })}
                       viewMode={viewMode}
-                      tagName="span"
                       placeholder="Score"
-                    />:
+                    />
+                    <span>:</span>
                   </span>
                   <span className="worksheet-field-line block flex-1 border-b-2 border-gray-300 h-5"></span>
               </div>
@@ -633,6 +681,7 @@ const WorksheetPaper: React.FC<{
       {isInteractive && (
            <script dangerouslySetInnerHTML={{ __html: INTERACTIVE_SCRIPT }} />
       )}
+      </div>
     </div>
   );
 };

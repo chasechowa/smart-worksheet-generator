@@ -2,7 +2,7 @@
  * CF Worker — AI API 透传代理
  *
  * 绕过浏览器 CORS 限制，将前端请求转发到 AI Provider。
- * 支持：Gemini、DeepSeek、Kimi、OpenAI、Custom
+ * Supports: DeepSeek, Kimi, OpenAI-compatible custom endpoints
  *
  * 用法：
  *   POST https://<worker>.workers.dev/

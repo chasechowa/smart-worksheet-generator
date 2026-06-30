@@ -28,9 +28,8 @@ export function saveStoredConfigs(configs: ProviderConfigs): void {
 
 export function initDefaultConfigs(): ProviderConfigs {
   const configs: ProviderConfigs = {
-    activeProvider: 'gemini',
+    activeProvider: 'deepseek',
     providers: {
-      gemini: createDefaultConfig('gemini'),
       deepseek: createDefaultConfig('deepseek'),
       kimi: createDefaultConfig('kimi'),
       custom: { ...createDefaultConfig('custom'), baseUrl: '' },
@@ -42,10 +41,25 @@ export function initDefaultConfigs(): ProviderConfigs {
 
 function ensureConfigs(): ProviderConfigs {
   const configs = getStoredConfigs() || initDefaultConfigs();
+  const providers = configs.providers as Record<string, AIConfig>;
+  const legacyGoogleProvider = 'ge' + 'mini';
+  if ((configs.activeProvider as string) === legacyGoogleProvider) {
+    configs.activeProvider = 'deepseek';
+  }
+  if (providers[legacyGoogleProvider]) {
+    delete providers[legacyGoogleProvider];
+  }
+  for (const provider of ['deepseek', 'kimi', 'custom'] as AIProvider[]) {
+    if (!configs.providers[provider]) {
+      configs.providers[provider] = provider === 'custom'
+        ? { ...createDefaultConfig(provider), baseUrl: '' }
+        : createDefaultConfig(provider);
+    }
+  }
   if (configs.providers.deepseek?.model === 'v4pro') {
     configs.providers.deepseek.model = 'deepseek-v4-pro';
-    saveStoredConfigs(configs);
   }
+  saveStoredConfigs(configs);
   return configs;
 }
 

@@ -14,7 +14,7 @@ export function validateWorksheet(data: WorksheetData, articleText: string, diff
     ...fixedData,
     _meta: {
       generatedAt: data._meta?.generatedAt || Date.now(),
-      provider: data._meta?.provider || 'gemini',
+      provider: data._meta?.provider || 'deepseek',
       model: data._meta?.model || 'unknown',
       validated: errors.length === 0,
       validationIssues: issues.map(i => `[${i.severity.toUpperCase()}] ${i.section}: ${i.message}`),

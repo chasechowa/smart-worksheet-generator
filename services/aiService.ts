@@ -1,4 +1,4 @@
-import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions } from "../types";
+import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions, MCQuestion, SyntaxDeconstructionItem, ExpansionItem } from "../types";
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 
@@ -75,7 +75,7 @@ async function proxyFetch(url: string, options?: RequestInit): Promise<Response>
     }
   }
 
-  // 路径 3：直连（Gemini 原生支持 CORS；DeepSeek/Kimi 国内可能可用）
+  // Final fallback: direct request. DeepSeek/Kimi may work directly depending on network and CORS.
   try {
     const resp = await fetch(url, options as RequestInit);
     return resp;
@@ -705,89 +705,6 @@ function assertWorksheetLike(parsed: any, provider: AIProvider, modelName: strin
   return parsed as WorksheetData;
 }
 
-// ==================== Gemini Provider ====================
-
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-
-async function detectGeminiModel(apiKey: string): Promise<string> {
-  try {
-    const res = await proxyFetch(`${GEMINI_API_BASE}/models?key=${apiKey}&pageSize=100`);
-    if (res.ok) {
-      const data = await res.json();
-      const models = (data.models || []) as any[];
-      const supported = models.filter(m =>
-        m.supportedGenerationMethods?.includes('generateContent')
-      );
-      const flash = supported.find(m => m.name?.includes('flash'));
-      if (flash) return flash.name.replace('models/', '');
-      const gemini = supported.find(m => m.name?.includes('gemini'));
-      if (gemini) return gemini.name.replace('models/', '');
-    }
-  } catch { /* ignore list failure */ }
-
-  const candidates = [
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-pro',
-    'gemini-2.0-flash-exp',
-    'gemini-2.0-flash',
-    'gemini-pro',
-  ];
-  for (const model of candidates) {
-    try {
-      const res = await proxyFetch(`${GEMINI_API_BASE}/models/${model}?key=${apiKey}`);
-      if (res.ok) return model;
-    } catch { /* ignore probe failure */ }
-  }
-
-  return 'gemini-1.5-flash-latest';
-}
-
-const callGemini = async (prompt: string, modelName: string, apiKey: string): Promise<WorksheetData> => {
-  const model = modelName === 'auto' ? await detectGeminiModel(apiKey) : modelName;
-  const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`;
-
-  const response = await proxyFetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.5,
-        maxOutputTokens: 8192,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    if (response.status === 400 && body.includes('API key not valid')) {
-      throw new Error(`API key invalid (${response.status}). Please check your API key.`);
-    }
-    if (response.status === 404) {
-      throw new Error(`Model not found (${response.status}). No available Gemini model for this API key.`);
-    }
-    if (response.status === 429) {
-      throw new Error(`Rate limit exceeded (${response.status}). Please try again later.`);
-    }
-    throw new Error(`Gemini API Error ${response.status}: ${body}`);
-  }
-
-  const data = await response.json();
-  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  const jsonText = extractJSON(content);
-
-  try {
-    return JSON.parse(jsonText) as WorksheetData;
-  } catch (parseErr: any) {
-    console.error("Failed to parse JSON from Gemini response:", content);
-    throw new Error(`Failed to parse API response: ${parseErr.message}`);
-  }
-};
-
 // ==================== OpenAI-Compatible Provider ====================
 
 const PROVIDER_BASE_URLS: Record<string, string> = {
@@ -917,8 +834,6 @@ const callOpenAICompatible = async (
 
 async function callAI(prompt: string, aiConfig: AIConfig): Promise<WorksheetData> {
   switch (aiConfig.provider) {
-    case 'gemini':
-      return callGemini(prompt, aiConfig.model, aiConfig.apiKey);
     case 'deepseek':
     case 'kimi':
     case 'custom':
@@ -998,16 +913,14 @@ ${buildLevelMCBlueprint(difficulty)}
 Quality rules:
 - ${profile.mcQuestions.guidance}
 - Correct answers must be text-supported and paraphrased unless the slot is Vocabulary in Context or Evidence Reasoning quotes.
-- Every question needs: id, type, cognitiveLevel, question, options, answer, explanation, distractors.
+- Every question needs: id, type, cognitiveLevel, question, options, answer, explanation.
 - options must be an array of exactly four raw option texts. No A/B/C/D prefixes.
 - answer must be one letter: A, B, C, or D.
-- distractors must include metadata for wrong options only.
-- Allowed distractor patterns: Too Broad, Too Narrow, Too Strong, Partially True, Wrong Scope, Unsupported Inference, Reversed Logic.
 - For C1 Inference and Structure / Function / Synthesis questions, include evidence[] with at least 2 references and reasoningSteps[] with at least 2 steps.
 - For C1 Vocabulary in Context, do not use the stem "In paragraph X, the word...". Use an analytical stem such as "The author's use of 'X' primarily frames..." or "Within the argument, 'X' most nearly conveys...".
 - For Evidence Reasoning pairs, include matching evidencePairLink fields.
 - For evidence quote questions, options should be short verbatim quotations from the article.
-- Keep explanations and distractor rationales concise: 1 sentence each.
+- Keep explanations concise: 1 sentence each.
 - Keep evidence references short: paragraph/sentence labels or short quoted fragments, not long copied passages.
 
 JSON schema:
@@ -1021,11 +934,6 @@ JSON schema:
       "options": ["...", "...", "...", "..."],
       "answer": "A",
       "explanation": "...",
-      "distractors": {
-        "B": { "pattern": "Too Broad", "rationale": "..." },
-        "C": { "pattern": "Wrong Scope", "rationale": "..." },
-        "D": { "pattern": "Unsupported Inference", "rationale": "..." }
-      },
       "evidence": ["optional for C1 inference/synthesis"],
       "reasoningSteps": ["optional for C1 inference/synthesis"],
       "evidencePairLink": { "claimQuestionId": "q4", "evidenceQuestionId": "q5" }
@@ -1159,16 +1067,53 @@ function ensureArray<T>(value: T[] | undefined, label: string): T[] {
   return value;
 }
 
-async function generateJSONSection(
+interface SummarySectionResponse {
+  title?: string;
+  articleSnippet?: string;
+  summary?: {
+    paragraph?: string;
+    blanks?: string[];
+  };
+}
+
+interface MCSectionResponse {
+  multipleChoice?: MCQuestion[];
+}
+
+interface SyntaxSectionResponse {
+  syntaxDeconstruction?: SyntaxDeconstructionItem[];
+}
+
+interface WritingSectionResponse {
+  writingWorkshop?: {
+    expansion?: ExpansionItem[];
+    keywords?: string[];
+    qaChain?: string[];
+    criticalThinking?: string;
+  };
+  keys?: {
+    expansion?: string[];
+    qa?: string[];
+    critical?: string;
+  };
+}
+
+async function generateJSONSection<T = any>(
   label: string,
   prompt: string,
   aiConfig: AIConfig,
   onProgress?: (message: string) => void,
   maxTokens?: number,
   retries = 1,
-): Promise<any> {
+): Promise<T> {
   onProgress?.(label);
-  return withRetry(() => callJSON(prompt, aiConfig, maxTokens), retries);
+  const startedAt = Date.now();
+  try {
+    return await withRetry(() => callJSON(prompt, aiConfig, maxTokens), retries) as T;
+  } finally {
+    const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+    console.info(`[generation] ${label} completed in ${seconds}s (${prompt.length} chars prompt, maxTokens=${maxTokens || 'default'})`);
+  }
 }
 
 async function runWithConcurrency<T, R>(
@@ -1209,35 +1154,41 @@ async function generateSectionedWorksheet(
   };
 
   const summaryPromise = options.summary
-    ? generateJSONSection('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark, 1800)
-    : Promise.resolve({});
+    ? generateJSONSection<SummarySectionResponse>('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark)
+    : Promise.resolve({} as SummarySectionResponse);
 
   const mcPromise = options.mc
-    ? generateJSONSection('Generating logical analysis', buildFastMCPrompt(article, difficulty), aiConfig, mark, 5200)
+    ? Promise.all([
+        generateJSONSection<MCSectionResponse>('Generating logical analysis q1-q5', buildMCBatchPrompt(article, difficulty, 1, 5), aiConfig, mark),
+        generateJSONSection<MCSectionResponse>('Generating logical analysis q6-q10', buildMCBatchPrompt(article, difficulty, 6, 10), aiConfig, mark),
+      ])
+      .then(parts => ({
+        multipleChoice: parts.flatMap(part => ensureArray(part.multipleChoice, 'multipleChoice')),
+      }))
       .then(part => {
         completedTasks++;
         onProgress?.(`Questions complete (${completedTasks}/${selectedTasks.length})...`);
         return part;
       })
-    : Promise.resolve({});
+    : Promise.resolve({ multipleChoice: [] } as MCSectionResponse);
 
   const syntaxPromise = options.syntaxDeconstruction
-    ? generateJSONSection('Generating syntax section', buildSyntaxSectionPrompt(article, difficulty), aiConfig, mark, 2200)
+    ? generateJSONSection<SyntaxSectionResponse>('Generating syntax section', buildSyntaxSectionPrompt(article, difficulty), aiConfig, mark)
         .then(part => {
           completedTasks++;
           onProgress?.(`Syntax complete (${completedTasks}/${selectedTasks.length})...`);
           return part;
         })
-    : Promise.resolve({});
+    : Promise.resolve({} as SyntaxSectionResponse);
 
   const writingPromise = selectedWriting
-    ? generateJSONSection('Generating writing section', buildWritingSectionPrompt(article, difficulty, options), aiConfig, mark, 3200)
+    ? generateJSONSection<WritingSectionResponse>('Generating writing section', buildWritingSectionPrompt(article, difficulty, options), aiConfig, mark)
         .then(part => {
           completedTasks++;
           onProgress?.(`Writing complete (${completedTasks}/${selectedTasks.length})...`);
           return part;
         })
-    : Promise.resolve({});
+    : Promise.resolve({} as WritingSectionResponse);
 
   const summaryPart = await summaryPromise.then(part => {
     if (options.summary) {
@@ -1622,9 +1573,7 @@ export async function generateAndRefine(
   const reports: RefinementReport[] = [];
 
   // --- Initial generation ---
-  let data = aiConfig.provider === 'deepseek'
-    ? await generateSectionedWorksheet(article, difficulty, aiConfig, onProgress, generationOptions)
-    : await withRetry(() => callAI(buildPrompt(article, difficulty), aiConfig));
+  let data = await generateSectionedWorksheet(article, difficulty, aiConfig, onProgress, generationOptions);
   let rounds = 0;
 
   // Dynamic import to avoid circular dependency

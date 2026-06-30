@@ -110,6 +110,104 @@ describe('validateMC', () => {
     expect(Object.keys(rotated?.distractors || {})).not.toContain(rotated?.answer);
   });
 
+  it('removes distractor metadata attached to the correct answer', () => {
+    const questions = Array.from({ length: 10 }, (_, i) => ({
+      ...makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', i === 0 ? 'A' : 'B'),
+      distractors: i === 0
+        ? {
+            A: { pattern: 'Unsupported Inference' as const, rationale: 'This belongs on a wrong option only.' },
+            C: { pattern: 'Too Narrow' as const, rationale: 'A plausible but too limited reading.' },
+            D: { pattern: 'Too Strong' as const, rationale: 'A plausible but stronger claim than supported.' },
+          }
+        : {
+            A: { pattern: 'Too Broad' as const, rationale: 'A plausible but overextended reading.' },
+            C: { pattern: 'Too Narrow' as const, rationale: 'A plausible but too limited reading.' },
+            D: { pattern: 'Too Strong' as const, rationale: 'A plausible but stronger claim than supported.' },
+          },
+    }));
+
+    const { fixedData, issues } = validateMC(createMCData(questions));
+    expect(fixedData.multipleChoice[0].distractors?.A).toBeUndefined();
+    expect(fixedData.multipleChoice[0].distractors?.B).toBeDefined();
+    expect(issues.some(i => i.message.includes('Removed distractor metadata'))).toBe(true);
+    expect(issues.some(i => i.message.includes('Wrong option B is missing distractor metadata'))).toBe(false);
+  });
+
+  it('normalizes common distractor pattern aliases without warning noise', () => {
+    const questions = Array.from({ length: 10 }, (_, i) => ({
+      ...makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A'),
+      distractors: {
+        B: { pattern: 'Overstatement' as any, rationale: 'This exaggerates what the passage supports.' },
+        C: { pattern: 'Unsupported' as any, rationale: 'This sounds plausible but lacks textual support.' },
+        D: { pattern: 'Wrong focus' as any, rationale: 'This focuses on a related but incorrect point.' },
+      },
+    }));
+
+    const { fixedData, issues } = validateMC(createMCData(questions));
+    expect(fixedData.multipleChoice[0].distractors?.B.pattern).toBe('Too Strong');
+    expect(fixedData.multipleChoice[0].distractors?.C.pattern).toBe('Unsupported Inference');
+    expect(fixedData.multipleChoice[0].distractors?.D.pattern).toBe('Wrong Scope');
+    expect(issues.some(i => i.message.includes('unknown distractor pattern'))).toBe(false);
+  });
+
+  it('normalizes noisy distractor pattern labels without warning noise', () => {
+    const noisyPatterns = [
+      ['Overemphasis', 'Absolute', 'Opposite'],
+      ['Misattribution', 'Vague', 'Contrary'],
+      ['Overly Specific', 'Too Abstract', 'Not Mentioned'],
+    ];
+    const questions = Array.from({ length: 10 }, (_, i) => {
+      const [b, c, d] = noisyPatterns[i % noisyPatterns.length];
+      return {
+        ...makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A'),
+        distractors: {
+          B: { pattern: b as any, rationale: 'Plausible but not the best supported answer.' },
+          C: { pattern: c as any, rationale: 'Plausible but not the best supported answer.' },
+          D: { pattern: d as any, rationale: 'Plausible but not the best supported answer.' },
+        },
+      };
+    });
+
+    const { fixedData, issues } = validateMC(createMCData(questions));
+    const allowed = new Set(['Too Broad', 'Too Narrow', 'Too Strong', 'Partially True', 'Wrong Scope', 'Unsupported Inference', 'Reversed Logic']);
+    Object.values(fixedData.multipleChoice[0].distractors || {}).forEach(meta => {
+      expect(allowed.has(meta.pattern)).toBe(true);
+    });
+    expect(issues.some(i => i.message.includes('unknown distractor pattern'))).toBe(false);
+  });
+
+  it('autofills missing distractor metadata without warning noise', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A')
+    );
+
+    const { fixedData, issues } = validateMC(createMCData(questions));
+    expect(Object.keys(fixedData.multipleChoice[0].distractors || {}).sort()).toEqual(['B', 'C', 'D']);
+    expect(issues.some(i => i.message.includes('Missing distractor metadata'))).toBe(false);
+    expect(issues.some(i => i.message.includes('missing distractor metadata'))).toBe(false);
+  });
+
+  it('normalizes evidence pair links when exactly two Evidence Reasoning questions exist', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A')
+    );
+    questions[0].id = 'claim';
+    questions[1].id = 'evidence';
+    questions[0].evidencePairLink = { claimQuestionId: 'wrong', evidenceQuestionId: 'evidence' };
+    questions[1].evidencePairLink = { claimQuestionId: 'claim', evidenceQuestionId: 'wrong' };
+
+    const { fixedData, issues } = validateMC(createMCData(questions));
+    expect(fixedData.multipleChoice[0].evidencePairLink).toEqual({
+      claimQuestionId: 'claim',
+      evidenceQuestionId: 'evidence',
+    });
+    expect(fixedData.multipleChoice[1].evidencePairLink).toEqual({
+      claimQuestionId: 'claim',
+      evidenceQuestionId: 'evidence',
+    });
+    expect(issues.some(i => i.message.includes('Evidence pair link is inconsistent'))).toBe(false);
+  });
+
   it('detects duplicate options', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
       makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Unique', ['Same', 'Same', 'Different', 'Unique'])

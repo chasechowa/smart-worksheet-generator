@@ -123,7 +123,7 @@ export interface DifficultyProfile {
 
 export type DifficultyProfiles = Record<Difficulty, DifficultyProfile>;
 
-export type AIProvider = 'gemini' | 'deepseek' | 'kimi' | 'custom';
+export type AIProvider = 'deepseek' | 'kimi' | 'custom';
 
 export interface AIConfig {
   provider: AIProvider;
@@ -261,6 +261,7 @@ export interface AppSettings {
   aiConfig: AIConfig;
   difficulty: Difficulty;
   teacherName: string;
+  watermarkText: string;
   showKeys: boolean;
 }
 
@@ -318,10 +319,6 @@ export interface ProjectMeta {
 }
 
 export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string }[]> = {
-  gemini: [
-    { label: 'Flash', value: 'gemini-3-flash-preview' },
-    { label: 'Pro', value: 'gemini-3-pro-preview' },
-  ],
   deepseek: [
     { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
     { label: 'DeepSeek V4 Flash', value: 'deepseek-v4-flash' },
@@ -339,7 +336,6 @@ export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string 
 };
 
 export const PROVIDER_DEFAULTS: Record<AIProvider, { model: string }> = {
-  gemini: { model: 'gemini-3-flash-preview' },
   deepseek: { model: 'deepseek-v4-pro' },
   kimi: { model: 'moonshot-v1-8k' },
   custom: { model: 'custom-model' },

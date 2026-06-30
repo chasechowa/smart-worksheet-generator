@@ -53,6 +53,37 @@ const ALLOWED_PATTERNS: DistractorPattern[] = [
   'Wrong Scope', 'Unsupported Inference', 'Reversed Logic',
 ];
 
+const DISTRACTOR_PATTERN_MIGRATION: Record<string, DistractorPattern> = {
+  'broad': 'Too Broad',
+  'too broad': 'Too Broad',
+  'overgeneralization': 'Too Broad',
+  'overgeneralisation': 'Too Broad',
+  'narrow': 'Too Narrow',
+  'too narrow': 'Too Narrow',
+  'irrelevant detail': 'Too Narrow',
+  'overstatement': 'Too Strong',
+  'overreach': 'Too Strong',
+  'too strong': 'Too Strong',
+  'counterfactual unlikely': 'Too Strong',
+  'partially true': 'Partially True',
+  'fact not flaw': 'Partially True',
+  'fact, not flaw': 'Partially True',
+  'implied not primary': 'Partially True',
+  'implied, not primary': 'Partially True',
+  'wrong scope': 'Wrong Scope',
+  'wrong focus': 'Wrong Scope',
+  'wrong emphasis': 'Wrong Scope',
+  'no contrast': 'Wrong Scope',
+  'definitional': 'Wrong Scope',
+  'unsupported': 'Unsupported Inference',
+  'unsupported inference': 'Unsupported Inference',
+  'no evidence': 'Unsupported Inference',
+  'irrelevant': 'Unsupported Inference',
+  'contradiction': 'Reversed Logic',
+  'reversed logic': 'Reversed Logic',
+  'causality reversal': 'Reversed Logic',
+};
+
 // Old → new type migration (backward compat for saved worksheets)
 const TYPE_MIGRATION: Record<string, MCQuestionType> = {
   // Old pre-v2 types:
@@ -69,6 +100,35 @@ const TYPE_MIGRATION: Record<string, MCQuestionType> = {
 
 function stripPrefix(text: string): string {
   return String(text ?? '').replace(/^[A-Da-d][.)\]]\s*/, '').replace(/^\d+[.)\]]\s*/, '').trim();
+}
+
+function normalizePatternKey(pattern: string): string {
+  return String(pattern || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeDistractorPattern(pattern: string): DistractorPattern | null {
+  if (ALLOWED_PATTERNS.includes(pattern as DistractorPattern)) {
+    return pattern as DistractorPattern;
+  }
+
+  return DISTRACTOR_PATTERN_MIGRATION[normalizePatternKey(pattern)] || null;
+}
+
+function inferDistractorPattern(pattern: string): DistractorPattern {
+  const normalized = normalizeDistractorPattern(pattern);
+  if (normalized) return normalized;
+
+  const key = normalizePatternKey(pattern);
+  if (/contradict|opposite|contrary|reversal/.test(key)) return 'Reversed Logic';
+  if (/absolute|over|strong|unlikely|counterfactual/.test(key)) return 'Too Strong';
+  if (/narrow|specific/.test(key)) return 'Too Narrow';
+  if (/partial|fact/.test(key)) return 'Partially True';
+  if (/scope|focus|emphasis|tangent|vague|abstract|misattribution/.test(key)) return 'Wrong Scope';
+  return 'Unsupported Inference';
 }
 
 /**
@@ -133,6 +193,75 @@ function rotateOptions(q: MCQuestion, fromLetter: string, targetLetter: string):
       ? (Object.keys(remappedDistractors).length > 0 ? remappedDistractors : undefined)
       : undefined,
   };
+}
+
+function sanitizeDistractors(q: MCQuestion): { question: MCQuestion; removedLetters: string[]; normalizedPatterns: string[] } {
+  const correctLetter = q.answer?.toUpperCase();
+  if (!correctLetter) {
+    return { question: q, removedLetters: [], normalizedPatterns: [] };
+  }
+
+  const cleaned: MCQuestion['distractors'] = {};
+  const removedLetters: string[] = [];
+  const normalizedPatterns: string[] = [];
+
+  for (const [rawLetter, meta] of Object.entries(q.distractors || {})) {
+    const letter = rawLetter.toUpperCase();
+    const isOptionLetter = /^[A-D]$/.test(letter);
+    if (!isOptionLetter || letter === correctLetter) {
+      removedLetters.push(letter);
+      continue;
+    }
+
+    const normalizedPattern = inferDistractorPattern(meta.pattern);
+    cleaned[letter] = normalizedPattern !== meta.pattern
+      ? { ...meta, pattern: normalizedPattern }
+      : meta;
+
+    if (normalizedPattern !== meta.pattern) {
+      normalizedPatterns.push(`${letter}: ${meta.pattern} -> ${normalizedPattern}`);
+    }
+  }
+
+  for (const letter of ['A', 'B', 'C', 'D']) {
+    if (letter === correctLetter || cleaned[letter]) continue;
+    cleaned[letter] = {
+      pattern: 'Unsupported Inference',
+      rationale: 'Generated as standard metadata for this wrong option.',
+    };
+  }
+
+  return {
+    question: {
+      ...q,
+      distractors: cleaned,
+    },
+    removedLetters,
+    normalizedPatterns,
+  };
+}
+
+function normalizeEvidencePairLinks(mc: MCQuestion[]): MCQuestion[] {
+  const evidenceQuestions = mc.filter(q => q.type === 'Evidence Reasoning');
+  if (evidenceQuestions.length !== 2) return mc;
+
+  const [first, second] = evidenceQuestions;
+  const existingLinks = evidenceQuestions
+    .map(q => q.evidencePairLink)
+    .filter(Boolean);
+  const usableLink = existingLinks.find(link =>
+    link!.claimQuestionId !== link!.evidenceQuestionId &&
+    evidenceQuestions.some(q => q.id === link!.claimQuestionId) &&
+    evidenceQuestions.some(q => q.id === link!.evidenceQuestionId)
+  );
+
+  const claimQuestionId = usableLink?.claimQuestionId || first.id;
+  const evidenceQuestionId = usableLink?.evidenceQuestionId || second.id;
+
+  return mc.map(q => q.type === 'Evidence Reasoning'
+    ? { ...q, evidencePairLink: { claimQuestionId, evidenceQuestionId } }
+    : q
+  );
 }
 
 /**
@@ -254,11 +383,35 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
       fixedQ.explanation = 'This is the correct answer based on the passage.';
     }
 
-    return fixedQ;
+    const sanitized = sanitizeDistractors(fixedQ);
+    if (sanitized.removedLetters.length > 0) {
+      issues.push({
+        type: 'rule',
+        section: 'mc',
+        severity: 'warning',
+        message: `Q${i + 1}: Removed distractor metadata from correct/invalid option(s): ${sanitized.removedLetters.join(', ')}`,
+        suggestion: 'Distractor metadata should be attached to wrong options only.',
+      });
+    }
+
+    return sanitized.question;
   });
 
   // Step 2: auto-fix answer distribution (rotate options)
-  fixedMC = fixAnswerDistribution(fixedMC);
+  fixedMC = fixAnswerDistribution(fixedMC).map((q, i) => {
+    const sanitized = sanitizeDistractors(q);
+    if (sanitized.removedLetters.length > 0) {
+      issues.push({
+        type: 'rule',
+        section: 'mc',
+        severity: 'warning',
+        message: `Q${i + 1}: Removed distractor metadata from correct/invalid option(s) after option rotation: ${sanitized.removedLetters.join(', ')}`,
+        suggestion: 'Regenerate or edit distractor metadata so each wrong option has a matching rationale.',
+      });
+    }
+    return sanitized.question;
+  });
+  fixedMC = normalizeEvidencePairLinks(fixedMC);
 
   // Rebuild keys after rotation — all answers are now normalized letters
   const newKeys: Record<string, string> = {};
@@ -346,27 +499,12 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     }
   });
 
-  // Warn if any distractor pattern is overused (more than 33% of all distractors)
-  const totalDistractors = Object.values(patternCounts).reduce((a, b) => a + b, 0);
-  if (totalDistractors > 0) {
-    for (const [pattern, count] of Object.entries(patternCounts)) {
-      const ratio = count / totalDistractors;
-      if (ratio > 0.33) {
-        issues.push({
-          type: 'rule', section: 'mc', severity: 'warning',
-          message: `Distractor pattern "${pattern}" is overused (${count}/${totalDistractors} = ${Math.round(ratio * 100)}%)`,
-          suggestion: 'Distribute distractor patterns more evenly',
-        });
-      }
-    }
-  }
-
   // ---- Option length balance ----
   fixedMC.forEach((q, i) => {
     const lengths = q.options.map(o => o.length);
     const maxLen = Math.max(...lengths);
     const minLen = Math.min(...lengths);
-    if (maxLen > minLen * 1.3) {
+    if (maxLen - minLen >= 30 && maxLen > minLen * 1.6) {
       issues.push({ type: 'rule', section: 'mc', severity: 'warning', message: `Q${i + 1}: Option lengths vary significantly (${minLen}-${maxLen} chars)` });
     }
   });

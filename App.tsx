@@ -228,18 +228,88 @@ const BASE_STYLES = `
       color-adjust: exact !important;
     }
 
+    body {
+      position: relative;
+      background: #ffffff !important;
+    }
+
+    #root,
+    .paper {
+      position: relative;
+      z-index: 1;
+      background: transparent !important;
+    }
+
+    .paper::before,
+    .paper::after {
+      display: none !important;
+    }
+
+    .print-watermark {
+      bottom: 18mm;
+      color: rgba(15, 23, 42, 0.09);
+      display: block !important;
+      font-size: clamp(34pt, 9vw, 58pt) !important;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      line-height: 0.86;
+      max-width: 92mm;
+      pointer-events: none;
+      position: fixed;
+      right: 12mm;
+      text-align: right;
+      text-transform: uppercase;
+      transform: rotate(-18deg);
+      transform-origin: center;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      z-index: 0;
+    }
+
+    .print-corner-mark {
+      bottom: 9mm;
+      display: block !important;
+      height: 44mm;
+      pointer-events: none;
+      position: fixed;
+      right: 10mm;
+      width: 64mm;
+      z-index: 0;
+      background:
+        linear-gradient(rgba(14, 165, 233, 0.13), rgba(14, 165, 233, 0.13)),
+        linear-gradient(rgba(99, 102, 241, 0.10), rgba(99, 102, 241, 0.10)),
+        linear-gradient(rgba(15, 23, 42, 0.075), rgba(15, 23, 42, 0.075)),
+        linear-gradient(rgba(14, 165, 233, 0.085), rgba(14, 165, 233, 0.085)),
+        linear-gradient(rgba(99, 102, 241, 0.075), rgba(99, 102, 241, 0.075)),
+        radial-gradient(circle at 70% 70%, rgba(14, 165, 233, 0.12), transparent 34mm);
+      background-position: right 2mm bottom 1mm, right 24mm bottom 13mm, right 10mm bottom 24mm, right 45mm bottom 5mm, right 36mm bottom 28mm, right bottom;
+      background-repeat: no-repeat;
+      background-size: 20mm 20mm, 13mm 13mm, 8mm 8mm, 6mm 24mm, 18mm 6mm, 64mm 44mm;
+      opacity: 0.72;
+    }
+
     .section-title {
-        background-color: #f3f4f6 !important;
+        background: linear-gradient(90deg, #eef6ff 0%, #f8fbff 58%, #ffffff 100%) !important;
+        border: 1px solid #dbeafe;
+        border-left: 4px solid #60a5fa;
         border-radius: 0.5rem;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
         padding: 0.5rem 1rem;
         margin-top: 1.5rem;
-        margin-bottom: 1rem;
-        border: 1px solid #e5e7eb;
+        margin-bottom: 0.45rem;
+    }
+
+    .section-instruction {
+        color: #64748b !important;
+        font-size: 8.5pt !important;
+        line-height: 1.32 !important;
+        margin: -0.1rem 0 0.75rem 0.95rem;
+        max-width: 92%;
     }
 
     ::-webkit-scrollbar { display: none; }
 
-    p, div, span, li, td {
+    p, div:not(.print-watermark):not(.print-corner-mark), span, li, td {
         font-family: Arial, sans-serif !important;
         font-size: 11pt !important;
     }
@@ -247,12 +317,22 @@ const BASE_STYLES = `
 
   h1 { font-weight: 900; text-transform: uppercase; text-align: center; font-size: 24pt !important; margin-bottom: 1rem; }
   h2 { font-weight: 900; text-transform: uppercase; margin-bottom: 0.5rem; font-size: 14pt !important; }
-  .paper { margin: 0 auto; }
-
+  .print-watermark,
+  .print-corner-mark {
+    display: none;
+  }
+  .paper {
+    margin: 0 auto;
+    position: relative;
+    isolation: isolate;
+  }
   .worksheet-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef6ff 52%, #f7f9ff 100%);
     border-bottom: 2px solid #1f2937;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+    margin-bottom: 1.25rem;
+    padding: 0.8rem 1rem 0.95rem;
   }
   .worksheet-brand {
     color: #111827;
@@ -344,14 +424,224 @@ const BASE_STYLES = `
   .interactive-opt.selected-wrong { background-color: #fee2e2 !important; border-color: #ef4444; }
 
   .section-title {
-    background-color: #f3f4f6;
+    background: linear-gradient(90deg, #eef6ff 0%, #f8fbff 58%, #ffffff 100%);
+    border: 1px solid #dbeafe;
+    border-left: 4px solid #60a5fa;
     border-radius: 8px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
     padding: 8px 12px;
     margin-top: 24px;
     margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .section-instruction {
+    color: #64748b;
+    font-size: 9pt !important;
+    line-height: 1.35;
+    margin: -4px 0 14px 14px;
+    max-width: 92%;
+  }
+`;
+
+const PREVIEW_WORKSHEET_STYLES = `
+  .worksheet-preview-scope .print-watermark,
+  .worksheet-preview-scope .print-corner-mark {
+    display: none;
+  }
+  .worksheet-preview-scope.preview-export {
+    --line-height: 2rem;
+    color: black;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+    font-size: 11pt !important;
+    line-height: 1.5;
+  }
+  .worksheet-preview-scope.preview-compact {
+    --line-height: 1.6rem;
+  }
+  .worksheet-preview-scope.preview-export h1 {
+    font-weight: 900;
+    text-transform: uppercase;
+    text-align: center;
+    font-size: 24pt !important;
+    margin-bottom: 1rem;
+  }
+  .worksheet-preview-scope.preview-export h2 {
+    font-weight: 900;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+    font-size: 14pt !important;
+  }
+  .worksheet-preview-scope.preview-export .paper {
+    max-width: 210mm;
+    padding: 6mm 8mm 8mm;
+    position: relative;
+    isolation: isolate;
+  }
+  .worksheet-preview-scope.preview-export .writing-line {
+    border-bottom: 1px solid #000;
+    height: var(--line-height);
+    margin-bottom: 0.1rem;
+    width: 100%;
+    display: block;
+  }
+  .worksheet-preview-scope.preview-compact .writing-line {
+    margin-bottom: 0;
+  }
+  .worksheet-preview-scope.preview-export .section-gap {
+    margin-bottom: 1.5rem;
+  }
+  .worksheet-preview-scope.preview-compact .section-gap {
+    margin-bottom: 1rem;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef6ff 52%, #f7f9ff 100%);
+    border-bottom: 2px solid #1f2937;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.22);
+    margin-bottom: 1.25rem;
+    padding: 0.8rem 1rem 0.95rem;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-brand {
+    color: #111827;
+    font-size: 10pt !important;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    line-height: 1;
+    margin-bottom: 0.55rem;
+    text-transform: uppercase;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-brand * {
+    font-size: inherit !important;
+    letter-spacing: inherit;
+    line-height: inherit;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-title {
+    color: #111827;
+    font-size: 18pt !important;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    line-height: 1.15;
+    margin: 0 0 0.85rem 0 !important;
+    overflow-wrap: anywhere;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-title * {
+    font-size: inherit !important;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-meta {
+    align-items: end;
+    color: #4b5563;
+    display: grid;
+    font-size: 10pt !important;
+    font-weight: 700;
+    gap: 1.5rem;
+    grid-template-columns: 1fr auto 1fr;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-field {
+    align-items: end;
+    display: flex;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-field > span:first-child,
+  .worksheet-preview-scope.preview-export .worksheet-level,
+  .worksheet-preview-scope.preview-export .worksheet-level * {
+    font-size: inherit !important;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-field-line {
+    border-bottom: 1.5px solid #111827;
+    display: inline-block;
+    flex: 1 1 auto;
+    height: 1rem;
+    min-width: 8rem;
+  }
+  .worksheet-preview-scope.preview-export .worksheet-level {
+    text-align: center;
+    white-space: nowrap;
+  }
+  .worksheet-preview-scope.preview-export .summary-blank {
+    border-bottom: 2px solid #111827;
+    display: inline-block;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0 0.25rem;
+    min-width: 7rem;
+    padding: 0 0.35rem 0.1rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .worksheet-preview-scope.preview-export .summary-blank::before {
+    content: "(" attr(data-index) ")";
+    color: #111827;
+  }
+  .worksheet-preview-scope.preview-export .section-title {
+    background: linear-gradient(90deg, #eef6ff 0%, #f8fbff 58%, #ffffff 100%);
+    border: 1px solid #dbeafe;
+    border-left: 4px solid #60a5fa;
+    border-radius: 8px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+    padding: 8px 12px;
+    margin-top: 24px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .worksheet-preview-scope.preview-export .section-instruction {
+    color: #64748b;
+    font-size: 9pt !important;
+    line-height: 1.35;
+    margin: -2px 0 12px 14px;
+    max-width: 92%;
+  }
+  .worksheet-preview-scope.preview-export .print-watermark {
+    bottom: 18mm;
+    color: rgba(15, 23, 42, 0.09);
+    display: block !important;
+    font-size: clamp(34pt, 9vw, 58pt) !important;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    line-height: 0.86;
+    max-width: 92mm;
+    pointer-events: none;
+    position: absolute;
+    right: 12mm;
+    text-align: right;
+    text-transform: uppercase;
+    transform: rotate(-18deg);
+    transform-origin: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    z-index: 0;
+  }
+  .worksheet-preview-scope.preview-export .print-corner-mark {
+    bottom: 9mm;
+    display: block !important;
+    height: 44mm;
+    pointer-events: none;
+    position: absolute;
+    right: 10mm;
+    width: 64mm;
+    z-index: 0;
+    background:
+      linear-gradient(rgba(14, 165, 233, 0.13), rgba(14, 165, 233, 0.13)),
+      linear-gradient(rgba(99, 102, 241, 0.10), rgba(99, 102, 241, 0.10)),
+      linear-gradient(rgba(15, 23, 42, 0.075), rgba(15, 23, 42, 0.075)),
+      linear-gradient(rgba(14, 165, 233, 0.085), rgba(14, 165, 233, 0.085)),
+      linear-gradient(rgba(99, 102, 241, 0.075), rgba(99, 102, 241, 0.075)),
+      radial-gradient(circle at 70% 70%, rgba(14, 165, 233, 0.12), transparent 34mm);
+    background-position: right 2mm bottom 1mm, right 24mm bottom 13mm, right 10mm bottom 24mm, right 45mm bottom 5mm, right 36mm bottom 28mm, right bottom;
+    background-repeat: no-repeat;
+    background-size: 20mm 20mm, 13mm 13mm, 8mm 8mm, 6mm 24mm, 18mm 6mm, 64mm 44mm;
+    opacity: 0.72;
   }
 `;
 
@@ -402,13 +692,14 @@ export default function App() {
   const [article, setArticle] = useState('');
   const [settings, setSettings] = useState<AppSettings>({
     aiConfig: {
-      provider: 'gemini',
+      provider: 'deepseek',
       apiKey: '',
-      model: 'gemini-3-flash-preview',
+      model: 'deepseek-v4-pro',
       enabled: false,
     },
     difficulty: 'B2',
     teacherName: '',
+    watermarkText: 'OTIA',
     showKeys: true
   });
   const [data, setData] = useState<WorksheetData | null>(null);
@@ -911,6 +1202,18 @@ export default function App() {
         )}
       </div>
 
+      {!isCompact && (
+        <div>
+          <label className="text-xs font-bold uppercase text-gray-400 block mb-2 tracking-wide">Watermark</label>
+          <input
+            value={settings.watermarkText}
+            onChange={e => setSettings({...settings, watermarkText: e.target.value})}
+            placeholder="OTIA"
+            className="w-full border border-gray-200 rounded-xl p-2.5 text-sm bg-white/90 focus:ring-2 focus:ring-indigo-400 outline-none transition-shadow placeholder-gray-300"
+          />
+        </div>
+      )}
+
       {renderGenerationSelector(isCompact)}
 
       {showConfigButton && (
@@ -985,6 +1288,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-100 font-sans text-gray-900">
       <style>{`
+        ${PREVIEW_WORKSHEET_STYLES}
         @media print {
           ${viewMode === 'print-compact' ? COMPACT_STYLES : STD_STYLES}
           .no-print { display: none !important; }
@@ -1133,6 +1437,16 @@ export default function App() {
                />
             </div>
 
+            <div className="border-t pt-6">
+               <label className="text-xs font-bold uppercase text-gray-400 block mb-2">Watermark</label>
+               <input
+                  value={settings.watermarkText}
+                  onChange={e => setSettings({...settings, watermarkText: e.target.value})}
+                  placeholder="OTIA"
+                  className="w-full border rounded p-2 text-sm"
+               />
+            </div>
+
             <div className="flex gap-2 pt-4">
               <button onClick={() => window.print()} className="flex-1 bg-gray-800 text-white py-2.5 rounded-xl font-bold text-xs hover:bg-gray-900 transition-colors" title="Print">
                 <i className="fas fa-print mr-1"></i>Print
@@ -1170,7 +1484,7 @@ export default function App() {
                 </div>
              </div>
 
-             <div className="p-0 lg:p-8">
+             <div className={`p-0 lg:p-8 worksheet-preview-scope ${viewMode === 'print-compact' ? 'preview-export preview-compact' : viewMode === 'print-std' || viewMode === 'pdf' ? 'preview-export preview-standard' : ''}`}>
                 <TestPreview
                   data={data}
                   settings={settings}
