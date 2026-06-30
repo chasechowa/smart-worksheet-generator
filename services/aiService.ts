@@ -349,7 +349,7 @@ function buildLevelMCBlueprint(difficulty: Difficulty): string {
     C1 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS; THIS OVERRIDES THE NON-C1 TABLE BELOW):
     - Q1 Main Idea, cognitiveLevel: synthesis. Test the central thesis without reusing the article's wording.
     - Q2 Inference, cognitiveLevel: synthesis. Require cross-paragraph synthesis; no single sentence may answer it.
-    - Q3 Inference, cognitiveLevel: synthesis. Ask about an unstated implication, limitation, or tension in the author's argument.
+    - Q3 Inference, cognitiveLevel: inference. Ask about an unstated implication, limitation, or tension in the author's argument.
     - Q4 Evidence Reasoning, cognitiveLevel: inference. Claim question; link it to Q5 with evidencePairLink.
     - Q5 Evidence Reasoning, cognitiveLevel: inference. Evidence question for Q4; options must be short verbatim quotations.
     - Q6 Inference, cognitiveLevel: synthesis. Require counterfactual reasoning ("if X had not happened...").
@@ -964,6 +964,9 @@ Fast quality rules:
 - ${profile.mcQuestions.guidance}
 - Prefer inferential stems over "According to..." retrieval stems.
 - Keep each stem under 24 words and each option under 22 words when possible.
+- Keep option lengths balanced by CHARACTERS: in each question, longest option should be less than 1.5x the shortest and no more than 25 characters longer.
+- For non-quote options, aim for 55-95 characters each; if one option is long, make the other three similarly specific.
+- For evidence quote options, use four quotations of similar length, ideally 7-14 words each.
 - Explanations: max 18 words.
 - Distractor rationales: max 10 words.
 - For C1, include evidence only as short paragraph labels, e.g. ["Para2", "Para8"].
