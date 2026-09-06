@@ -11,7 +11,7 @@
 ## 1. 一句话现状
 
 **线上已部署到 CF（`comprequiz.chao.asia`），DeepSeek V4 生成已修复、summary 出题已精修。**
-本地 1 个 commit（`835d5bd`）**还没推到 GitHub**（网络连不上 github.com:443）。CF 更新是**手动 wrangler 部署**，不依赖 GitHub push。
+本地提交：`1a88755`（= `835d5bd` 代码 + 本状态文档），**领先远程 2 个 commit，还没推到 GitHub**（网络连不上 github.com:443）。CF 更新是**手动 wrangler 部署**，不依赖 GitHub push。
 
 ---
 
@@ -52,8 +52,10 @@
 
 ## 5. Git 状态 & 轨迹
 
-- 本地 HEAD：`835d5bd` — `fix: enable DeepSeek V4 generation and stabilize summary blanks`
-- 远程 `main`：`dcbbb9c`（本地领先 1 个 commit **尚未 push**）
+- 本地 HEAD：`1a88755` — `docs: add PROJECT_STATUS.md + CLAUDE.md for agent handoff`
+  - `835d5bd` — DeepSeek V4 生成修复 + summary 精修
+  - `dcbbb9c` — 移除 Electron
+- 远程 `main`：`dcbbb9c`（本地领先 2 个 commit **尚未 push**）
 - ⚠️ 最近 `git push` 持续失败：`Failed to connect to github.com:443 / Connection reset`（当前网络到 GitHub 不通，时好时坏）。**待办：网络恢复后推一次。**
 - 最后成功 push：`96a8798..dcbbb9c  main -> main`
 
