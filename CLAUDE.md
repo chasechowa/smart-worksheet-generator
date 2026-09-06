@@ -1,8 +1,11 @@
 # Project — Smart Worksheet Generator
 
 Read **`PROJECT_STATUS.md`** first: it holds the current state, CF deployment/live status,
-git trace, recent work, and open todos. Keep it updated — after any `git` operation or
-Cloudflare deploy, append one line to its【操作日志】section.
+git trace, recent work, and open todos. **Keep it in sync as you work** — after any material
+change (feature, config, model list, deployment, live version, push outcome) update the relevant
+sections too, not just the log. After any `git` operation or Cloudflare deploy, append one line
+to its 【操作日志】 section. This file is the project's canonical handoff; a fresh agent must be
+able to pick up the current state from it alone.
 
 Key facts (details in PROJECT_STATUS.md):
 
