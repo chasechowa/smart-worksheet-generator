@@ -265,6 +265,13 @@ export interface AppSettings {
   showKeys: boolean;
 }
 
+export interface ProjectSnapshot {
+  settings?: Partial<Pick<AppSettings, 'difficulty' | 'teacherName' | 'watermarkText' | 'showKeys'>>;
+  visibleSections?: string[];
+  sectionOrder?: string[];
+  generationOptions?: Partial<GenerationOptions>;
+}
+
 export interface ValidationIssue {
   type: 'structure' | 'rule' | 'reference';
   section: 'summary' | 'mc' | 'syntax' | 'writing' | 'keys' | 'global';
@@ -301,16 +308,19 @@ export interface RefinementReport {
 
 export interface Project {
   id: string;
+  kind?: 'article' | 'worksheet';
   title: string;
   articleText: string;
   difficulty: Difficulty;
   createdAt: number;
   updatedAt: number;
   worksheets: WorksheetData[];
+  snapshot?: ProjectSnapshot;
 }
 
 export interface ProjectMeta {
   id: string;
+  kind: 'article' | 'worksheet';
   title: string;
   difficulty: Difficulty;
   createdAt: number;
@@ -322,8 +332,7 @@ export const PROVIDER_MODELS: Record<AIProvider, { label: string; value: string 
   deepseek: [
     { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
     { label: 'DeepSeek V4 Flash', value: 'deepseek-v4-flash' },
-    { label: 'DeepSeek V3 (deprecated 2026/07/24)', value: 'deepseek-chat' },
-    { label: 'DeepSeek R1 (deprecated 2026/07/24)', value: 'deepseek-reasoner' },
+    { label: 'DeepSeek V4 Flash (Vision, exp)', value: 'deepseek-v4-flash-vision-exp' },
   ],
   kimi: [
     { label: 'Moonshot v1 8k', value: 'moonshot-v1-8k' },

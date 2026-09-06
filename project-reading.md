@@ -4,11 +4,10 @@ Last read: 2026-06-28
 
 ## Snapshot
 
-This project is **Smart Worksheet Generator**, an AI-powered reading worksheet generator for ESL/EFL reading practice. It can run as:
+This project is **Smart Worksheet Generator**, an AI-powered reading worksheet generator for ESL/EFL reading practice. It is a web-only app:
 
-- A Vite/React web app.
-- An Electron desktop app.
-- A Cloudflare-hosted frontend with a Cloudflare Worker API proxy.
+- A Vite/React SPA deployed to Cloudflare.
+- A Cloudflare Worker API proxy for AI calls.
 
 The current branch is `main`, tracking `origin/master`, and local history is ahead by 3 commits. There are existing untracked Claude Code / validator files that should be treated as someone else's active work unless explicitly handed over.
 
@@ -16,7 +15,6 @@ The current branch is `main`, tracking `origin/master`, and local history is ahe
 
 - React 19 + TypeScript + Vite.
 - Tailwind CSS for exported worksheet styling.
-- Electron 35 for desktop packaging and local file/PDF capabilities.
 - Vitest for unit tests.
 - Cloudflare Worker proxy in `worker/`.
 
@@ -27,8 +25,6 @@ npm run dev
 npm run build
 npm test
 npm run preview
-npm run electron:dev
-npm run electron:build
 ```
 
 ## Product Model
@@ -67,12 +63,6 @@ Browser API calls go through proxy fallback order in `services/aiService.ts`:
 3. `https://smart-worksheet-proxy.saberking8.workers.dev`.
 4. Direct fetch fallback.
 
-Electron API calls go through IPC:
-
-- Renderer: `electron/preload.cjs`.
-- Main process handler: `electron/main.cjs`.
-- Proxy-aware fetch: `fetchWithProxy()`.
-
 Cloudflare Worker proxy:
 
 - Config: `worker/wrangler.toml`.
@@ -82,15 +72,7 @@ Cloudflare Worker proxy:
 
 ## Persistence
 
-Web mode stores projects in browser `localStorage`.
-
-Electron mode stores projects through IPC into:
-
-```text
-D:\WorkingStuff\TOOLS
-```
-
-This path is hardcoded in `electron/main.cjs` as `PROJECTS_DIR`.
+Projects are stored in the browser `localStorage` under the key `worksheet_projects`.
 
 ## Validation
 
@@ -196,7 +178,6 @@ Because the local branch is `main` while the upstream shown by git is `origin/ma
 - Prompt text in `services/aiService.ts` is long and partly mojibake in the terminal, so use careful UTF-8-aware editing and test JSON output expectations.
 - Config UI in `components/ConfigPanel.tsx` contains visible mojibake strings and one suspicious malformed-looking JSX span in terminal output; verify before touching.
 - Answer rotation in `validators/mcValidator.ts` changes option order and answer keys, so MC changes need focused tests.
-- Electron storage writes outside the repo to `D:\WorkingStuff\TOOLS`.
 - Worker proxy passes through API authorization headers, so avoid logging secrets.
 
 ## Immediate Improvement Candidates

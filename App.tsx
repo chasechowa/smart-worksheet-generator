@@ -85,12 +85,20 @@ function normalizeProject(project: Project): Project {
   const worksheets = Array.isArray(project.worksheets)
     ? project.worksheets.map(worksheet => normalizeWorksheetData(worksheet))
     : [];
+  const snapshot = project.snapshot || {};
 
   return {
     ...project,
+    kind: project.kind || (worksheets.length > 0 ? 'worksheet' : 'article'),
     articleText: project.articleText || '',
     difficulty: project.difficulty || 'B2',
     worksheets,
+    snapshot: {
+      ...snapshot,
+      visibleSections: Array.isArray(snapshot.visibleSections) ? snapshot.visibleSections : undefined,
+      sectionOrder: Array.isArray(snapshot.sectionOrder) ? snapshot.sectionOrder : undefined,
+      generationOptions: snapshot.generationOptions || undefined,
+    },
   };
 }
 
@@ -667,8 +675,8 @@ const COMPACT_STYLES = `
 `;
 
 // === PDF Export: minimal overrides, keep identical to HTML print layout ===
-// HTML export already prints perfectly to 4 pages in browser; we only
-// ensure Electron printToPDF respects the same @media print rules.
+// HTML export already prints perfectly to 4 pages in browser; the PDF button
+// opens this standalone doc in a new window and triggers the browser print dialog.
 const PDF_STYLES = `
   /* === PDF-only break control ( everything else comes from @media print ) === */
   .avoid-break {
@@ -740,6 +748,44 @@ export default function App() {
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
+  const getProjectTitleSeed = () => {
+    const fromData = data?.title?.trim();
+    const fromArticle = article.trim().split(/\n+/)[0]?.replace(/\s+/g, ' ').slice(0, 80);
+    return fromData || fromArticle || 'Saved Worksheet';
+  };
+
+  const buildProjectSnapshot = (): Project['snapshot'] => ({
+    settings: {
+      difficulty: settings.difficulty,
+      teacherName: settings.teacherName,
+      watermarkText: settings.watermarkText,
+      showKeys: settings.showKeys,
+    },
+    visibleSections: Array.from(visibleSections),
+    sectionOrder,
+    generationOptions,
+  });
+
+  const applyProjectSnapshot = (project: Project) => {
+    const snapshot = project.snapshot;
+    setSettings(prev => ({
+      ...prev,
+      difficulty: snapshot?.settings?.difficulty || project.difficulty || prev.difficulty,
+      teacherName: snapshot?.settings?.teacherName ?? prev.teacherName,
+      watermarkText: snapshot?.settings?.watermarkText ?? prev.watermarkText,
+      showKeys: snapshot?.settings?.showKeys ?? prev.showKeys,
+    }));
+    if (snapshot?.visibleSections?.length) {
+      setVisibleSections(new Set(snapshot.visibleSections));
+    }
+    if (snapshot?.sectionOrder?.length) {
+      setSectionOrder(snapshot.sectionOrder);
+    }
+    if (snapshot?.generationOptions) {
+      setGenerationOptions({ ...DEFAULT_GENERATION_OPTIONS, ...snapshot.generationOptions });
+    }
+  };
+
   useEffect(() => {
     getProjects()
       .then(async list => {
@@ -748,7 +794,7 @@ export default function App() {
         const normalized = normalizeProject(latest);
         setCurrentProject(normalized);
         setArticle(normalized.articleText || '');
-        setSettings(prev => ({ ...prev, difficulty: normalized.difficulty }));
+        applyProjectSnapshot(normalized);
       })
       .catch(() => {});
   }, []);
@@ -760,15 +806,13 @@ export default function App() {
 
     const updatedProject: Project = {
       ...currentProject,
+      kind: 'worksheet',
       articleText: article,
       difficulty: settings.difficulty,
-      worksheets: currentProject.worksheets.map(w => w._meta?.generatedAt === data._meta?.generatedAt ? data : w),
+      worksheets: [data],
+      snapshot: buildProjectSnapshot(),
       updatedAt: Date.now(),
     };
-
-    if (!updatedProject.worksheets.find(w => w._meta?.generatedAt === data._meta?.generatedAt)) {
-      updatedProject.worksheets.push(data);
-    }
 
     const hasContentChange =
       updatedProject.articleText !== currentProject.articleText ||
@@ -778,7 +822,9 @@ export default function App() {
     if (!hasContentChange) return;
 
     setCurrentProject(updatedProject);
-    saveProject(updatedProject).catch(console.error);
+    saveProject(updatedProject)
+      .then(saved => setCurrentProject(normalizeProject(saved)))
+      .catch(err => setError(err?.message || 'Local save failed.'));
   }, [data, currentProject, article, settings.difficulty]);
 
   // Cache compiled Tailwind CSS for self-contained HTML export (no CDN dependency)
@@ -865,7 +911,8 @@ export default function App() {
         return;
       }
 
-      setVisibleSections(getVisibleSectionsForGeneration(generationOptions));
+      const generatedVisibleSections = getVisibleSectionsForGeneration(generationOptions);
+      setVisibleSections(generatedVisibleSections);
       setData(finalData);
       setValidationResult(validation.issues.length > 0 ? { ...validation, data: finalData } : null);
 
@@ -876,9 +923,14 @@ export default function App() {
           article,
           settings.difficulty
         );
+        newProject.kind = 'worksheet';
         newProject.worksheets = [finalData];
-        await saveProject(newProject);
-        setCurrentProject(newProject);
+        newProject.snapshot = {
+          ...buildProjectSnapshot(),
+          visibleSections: Array.from(generatedVisibleSections),
+        };
+        const savedProject = await saveProject(newProject);
+        setCurrentProject(normalizeProject(savedProject));
       }
     } catch (err: any) {
       setError(err.message || 'Failed to generate');
@@ -934,7 +986,7 @@ export default function App() {
     const normalizedProject = normalizeProject(project);
     setCurrentProject(normalizedProject);
     setArticle(normalizedProject.articleText);
-    setSettings(prev => ({ ...prev, difficulty: normalizedProject.difficulty }));
+    applyProjectSnapshot(normalizedProject);
     const renderableWorksheets = normalizedProject.worksheets.filter(hasWorksheetContent);
     if (renderableWorksheets.length > 0) {
       const latest = renderableWorksheets[renderableWorksheets.length - 1];
@@ -952,44 +1004,62 @@ export default function App() {
   };
 
   const handleSaveCurrent = async () => {
-    if (!currentProject) return;
+    if (!article.trim() && !data) {
+      setError('Nothing to save yet. Add article text or generate a worksheet first.');
+      return;
+    }
+    const shouldUpdateCurrentWorksheet = currentProject?.kind === 'worksheet';
+    const baseProject = shouldUpdateCurrentWorksheet
+      ? currentProject
+      : createProject(getProjectTitleSeed(), article, settings.difficulty);
     const updated: Project = {
-      ...currentProject,
+      ...baseProject,
+      kind: data ? 'worksheet' : 'article',
+      title: baseProject.title || getProjectTitleSeed(),
       articleText: article,
       difficulty: settings.difficulty,
+      worksheets: data ? [data] : [],
+      snapshot: buildProjectSnapshot(),
       updatedAt: Date.now(),
     };
-    if (data) {
-      const exists = updated.worksheets.find(w => w._meta?.generatedAt === data._meta?.generatedAt);
-      if (!exists) {
-        updated.worksheets.push(data);
-      } else {
-        updated.worksheets = updated.worksheets.map(w =>
-          w._meta?.generatedAt === data._meta?.generatedAt ? data : w
-        );
-      }
+    try {
+      const saved = await saveProject(updated);
+      setCurrentProject(normalizeProject(saved));
+      setError(null);
+      setRefinementSummary('Current worksheet saved locally.');
+    } catch (err: any) {
+      setError(err?.message || 'Local save failed.');
     }
-    await saveProject(updated);
-    setCurrentProject(updated);
   };
 
   const handleSaveArticle = async () => {
     if (!article.trim()) return;
-    const titleSeed = article.trim().split(/\n+/)[0].replace(/\s+/g, ' ').slice(0, 80);
-    const project = currentProject
+    const project = currentProject?.kind === 'article'
       ? {
           ...currentProject,
-          title: currentProject.title || titleSeed || 'Saved Article',
+          kind: 'article' as const,
+          title: currentProject.title || getProjectTitleSeed() || 'Saved Article',
           articleText: article,
           difficulty: settings.difficulty,
+          worksheets: [],
+          snapshot: buildProjectSnapshot(),
           updatedAt: Date.now(),
         }
-      : createProject(titleSeed || 'Saved Article', article, settings.difficulty);
+      : {
+          ...createProject(getProjectTitleSeed() || 'Saved Article', article, settings.difficulty),
+          kind: 'article' as const,
+          worksheets: [],
+          snapshot: buildProjectSnapshot(),
+        };
 
-    await saveProject(project);
-    setCurrentProject(project);
-    setError(null);
-    setRefinementSummary('Article saved locally. It will auto-load next time.');
+    try {
+      const saved = await saveProject(project);
+      setCurrentProject(normalizeProject(saved));
+      setError(null);
+      setRefinementSummary('Article saved locally. It will auto-load next time.');
+    } catch (err: any) {
+      setError(err?.message || 'Local save failed.');
+    }
   };
 
   const setGenerationOption = (key: keyof GenerationOptions, value: boolean) => {
@@ -1121,18 +1191,20 @@ export default function App() {
     a.click();
   };
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = () => {
     const html = buildExportHTML(true);
     if (!html) return;
-    try {
-      const filename = `${data!.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
-      const result = await (window as any).electronAPI.exportPDF(html, filename);
-      if (result?.success) {
-        alert(`PDF saved to:\n${result.path}`);
-      }
-    } catch (err: any) {
-      alert('PDF export failed: ' + err.message);
+    const win = window.open('', '_blank');
+    if (!win) {
+      alert('Popup blocked. Please allow popups to export the PDF.');
+      return;
     }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    // Give the injected stylesheet a tick to apply before opening the print dialog.
+    setTimeout(() => win.print(), 120);
   };
 
   // Shared input controls used in both home and sidebar layouts

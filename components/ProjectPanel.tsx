@@ -5,12 +5,13 @@ import { getProjects, deleteProject, exportProject, importProject, getProject } 
 interface ProjectPanelProps {
   currentProject: Project | null;
   onLoadProject: (project: Project) => void;
-  onSaveCurrent: () => void;
+  onSaveCurrent: () => Promise<void>;
 }
 
 export const ProjectPanel: React.FC<ProjectPanelProps> = ({ currentProject, onLoadProject, onSaveCurrent }) => {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [showImport, setShowImport] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
     const list = await getProjects();
@@ -19,10 +20,13 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({ currentProject, onLo
 
   useEffect(() => { refresh(); }, [currentProject?.id, currentProject?.updatedAt]);
 
+  const articleItems = projects.filter(item => item.kind === 'article');
+  const worksheetItems = projects.filter(item => item.kind !== 'article');
+
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this project?')) return;
+    if (!confirm('Delete this item?')) return;
     await deleteProject(id);
-    refresh();
+    await refresh();
   };
 
   const handleExport = () => {
@@ -43,6 +47,7 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({ currentProject, onLo
       const project = importProject(text);
       onLoadProject(project);
       setShowImport(false);
+      await refresh();
     } catch (err: any) {
       alert('Import failed: ' + err.message);
     }
@@ -53,20 +58,50 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({ currentProject, onLo
     onLoadProject(proj);
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSaveCurrent();
+      await refresh();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const renderItem = (item: ProjectMeta) => (
+    <div
+      key={item.id}
+      className={`flex items-center justify-between p-2 rounded text-xs cursor-pointer ${currentProject?.id === item.id ? 'bg-blue-50 border border-blue-200' : 'bg-white border border-gray-100 hover:bg-gray-50'}`}
+    >
+      <div onClick={() => handleLoad(item.id)} className="flex-1 min-w-0">
+        <div className="font-bold truncate">{item.title}</div>
+        <div className="text-gray-400">
+          {item.kind === 'article' ? 'Text only' : 'Worksheet'} · {item.difficulty}
+        </div>
+      </div>
+      <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-600 ml-2">
+        <i className="fas fa-trash-alt"></i>
+      </button>
+    </div>
+  );
+
   return (
-    <div className="border-t pt-4 space-y-3">
+    <div className="border-t pt-4 space-y-4">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-bold uppercase text-gray-400">Projects</label>
+        <label className="text-xs font-bold uppercase text-gray-400">Saved</label>
         <div className="flex gap-1">
-          {currentProject && (
-            <button onClick={onSaveCurrent} title="Save" className="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded text-[10px]">
-              <i className="fas fa-save"></i>
-            </button>
-          )}
-          <button onClick={handleExport} disabled={!currentProject} title="Export" className="w-6 h-6 flex items-center justify-center bg-green-600 text-white rounded text-[10px] disabled:opacity-30">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            title="Save current worksheet"
+            className="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded text-[10px] disabled:opacity-50"
+          >
+            <i className={`fas ${saving ? 'fa-spinner fa-spin' : 'fa-save'}`}></i>
+          </button>
+          <button onClick={handleExport} disabled={!currentProject} title="Export selected item" className="w-6 h-6 flex items-center justify-center bg-green-600 text-white rounded text-[10px] disabled:opacity-30">
             <i className="fas fa-download"></i>
           </button>
-          <button onClick={() => setShowImport(!showImport)} title="Import" className="w-6 h-6 flex items-center justify-center bg-gray-600 text-white rounded text-[10px]">
+          <button onClick={() => setShowImport(!showImport)} title="Import item" className="w-6 h-6 flex items-center justify-center bg-gray-600 text-white rounded text-[10px]">
             <i className="fas fa-upload"></i>
           </button>
         </div>
@@ -76,24 +111,24 @@ export const ProjectPanel: React.FC<ProjectPanelProps> = ({ currentProject, onLo
         <input type="file" accept=".json" onChange={handleImport} className="text-xs w-full" />
       )}
 
-      <div className="space-y-1 max-h-40 overflow-y-auto">
-        {projects.length === 0 && (
-          <div className="text-xs text-gray-400 italic">No saved projects</div>
-        )}
-        {projects.map(p => (
-          <div
-            key={p.id}
-            className={`flex items-center justify-between p-2 rounded text-xs cursor-pointer ${currentProject?.id === p.id ? 'bg-blue-50 border border-blue-200' : 'bg-white border border-gray-100 hover:bg-gray-50'}`}
-          >
-            <div onClick={() => handleLoad(p.id)} className="flex-1 min-w-0">
-              <div className="font-bold truncate">{p.title}</div>
-              <div className="text-gray-400">{p.difficulty} · {p.worksheetCount} worksheet(s)</div>
-            </div>
-            <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-600 ml-2">
-              <i className="fas fa-trash-alt"></i>
-            </button>
-          </div>
-        ))}
+      <div className="space-y-2">
+        <label className="text-xs font-bold uppercase text-gray-400">Articles</label>
+        <div className="space-y-1 max-h-32 overflow-y-auto">
+          {articleItems.length === 0 && (
+            <div className="text-xs text-gray-400 italic">No saved articles</div>
+          )}
+          {articleItems.map(renderItem)}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-bold uppercase text-gray-400">Projects</label>
+        <div className="space-y-1 max-h-40 overflow-y-auto">
+          {worksheetItems.length === 0 && (
+            <div className="text-xs text-gray-400 italic">No saved worksheets</div>
+          )}
+          {worksheetItems.map(renderItem)}
+        </div>
       </div>
     </div>
   );

@@ -17,9 +17,6 @@ dist-ssr
 .env.*
 !.env.example
 
-# Electron builder output
-release/
-
 # Prompt history (may contain sensitive data)
 migrated_prompt_history/
 

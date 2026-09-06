@@ -15,7 +15,7 @@ AI-powered reading comprehension worksheet builder. Paste an article and generat
 
 ```bash
 npm install
-npm run electron:dev
+npm run dev
 ```
 
 Open AI Configuration, choose DeepSeek, Kimi, or Custom, enter your API key, then generate a worksheet from an article.
@@ -34,7 +34,7 @@ Open AI Configuration, choose DeepSeek, Kimi, or Custom, enter your API key, the
 npm run dev
 npm run build
 npm test
-npm run electron:dev
+npm run preview
 ```
 
 ## Tech Stack
@@ -42,5 +42,5 @@ npm run electron:dev
 - React 19
 - TypeScript
 - Vite
-- Electron
 - Tailwind CSS
+- Cloudflare Workers (API proxy)

@@ -58,4 +58,17 @@ describe('configService', () => {
     expect(getStoredConfigs()?.activeProvider).toBe('kimi');
     expect(getActiveConfig()?.provider).toBe('kimi');
   });
+
+  it('should heal a deprecated deepseek model id to a valid one', () => {
+    initDefaultConfigs();
+    saveProviderConfig('deepseek', {
+      provider: 'deepseek',
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
+      enabled: true,
+    });
+    const config = getProviderConfig('deepseek');
+    expect(config?.model).toBe('deepseek-v4-pro');
+    expect(config?.apiKey).toBe('sk-test');
+  });
 });

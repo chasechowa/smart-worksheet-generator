@@ -1,7 +1,11 @@
 import type { AIProvider, AIConfig, ProviderConfigs } from '../types';
-import { PROVIDER_DEFAULTS } from '../types';
+import { PROVIDER_DEFAULTS, PROVIDER_MODELS } from '../types';
 
 const STORAGE_KEY = 'vocabforge_ai_keys';
+
+// Models DeepSeek currently accepts. Anything else stored (e.g. deprecated
+// deepseek-chat / deepseek-reasoner) is dead and gets healed below.
+const VALID_DEEPSEEK_MODELS = PROVIDER_MODELS.deepseek.map(m => m.value);
 
 function createDefaultConfig(provider: AIProvider): AIConfig {
   return {
@@ -56,8 +60,9 @@ function ensureConfigs(): ProviderConfigs {
         : createDefaultConfig(provider);
     }
   }
-  if (configs.providers.deepseek?.model === 'v4pro') {
-    configs.providers.deepseek.model = 'deepseek-v4-pro';
+  const deepseek = configs.providers.deepseek;
+  if (deepseek && !VALID_DEEPSEEK_MODELS.includes(deepseek.model)) {
+    deepseek.model = PROVIDER_DEFAULTS.deepseek.model;
   }
   saveStoredConfigs(configs);
   return configs;

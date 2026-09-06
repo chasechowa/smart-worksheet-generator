@@ -2,9 +2,6 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 
-// Detect if we're in Electron with IPC proxy available
-const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?.invokeApiCall;
-
 // CF Worker proxy URLs — tried in order, 3s timeout per attempt
 // 国内访问：如果自定义域名不可用，会 fallback 到直连
 const DEFAULT_PROXIES: string[] = [
@@ -22,23 +19,13 @@ function getUserProxy(): string | null {
 }
 
 async function proxyFetch(url: string, options?: RequestInit): Promise<Response> {
-  // 路径 1：Electron 桌面版 → IPC 代理
-  if (isElectron) {
-    const result = await (window as any).electronAPI.invokeApiCall(url, options);
-    return new Response(result.body, {
-      status: result.status,
-      statusText: result.statusText,
-      headers: result.headers,
-    });
-  }
-
   // 构建代理列表：用户自定义 + 默认
   const proxies: string[] = [];
   const userProxy = getUserProxy();
   if (userProxy) proxies.push(userProxy);
   proxies.push(...DEFAULT_PROXIES);
 
-  // 路径 2：浏览器 → Worker 代理
+  // 浏览器 → Worker 代理
   let lastError: string | null = null;
   for (const proxyUrl of proxies) {
     try {
