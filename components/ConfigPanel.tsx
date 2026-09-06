@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { AIProvider, AIConfig } from '../types';
 import { PROVIDER_DEFAULTS, PROVIDER_MODELS } from '../types';
 import { getAllConfigs, getActiveProvider, setActiveProvider, saveProviderConfig, validateConfig } from '../services/configService';
+import { proxyFetch } from '../services/aiService';
 
 interface ConfigPanelProps {
   embedded?: boolean;
@@ -58,7 +59,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) =
       if (!config.apiKey) throw new Error('API Key is required');
 
       const base = config.baseUrl || (config.provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.moonshot.cn/v1');
-      const res = await fetch(`${base}/chat/completions`, {
+      const res = await proxyFetch(`${base}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,6 +69,7 @@ export const ConfigPanel: React.FC<ConfigPanelProps> = ({ embedded, onSaved }) =
           model: config.model,
           messages: [{ role: 'user', content: 'Hi' }],
           max_tokens: 1,
+          ...(config.provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
         }),
       });
 

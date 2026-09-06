@@ -838,7 +838,10 @@ export default function App() {
   }, []);
 
   const handleGenerate = async () => {
-    if (!article.trim()) return;
+    if (!article.trim()) {
+      setError('Paste an article before generating a worksheet.');
+      return;
+    }
     if (!hasAnyGeneratedSection(generationOptions)) {
       setError('Select at least one worksheet section to generate.');
       return;

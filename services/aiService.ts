@@ -2,7 +2,9 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 
-// CF Worker proxy URLs — tried in order, 3s timeout per attempt
+// CF Worker proxy URLs — tried in order. The Worker buffers the upstream
+// response, so the browser timeout must allow a full worksheet section to be
+// generated rather than only covering connection setup.
 // 国内访问：如果自定义域名不可用，会 fallback 到直连
 const DEFAULT_PROXIES: string[] = [
   'https://api.comprequiz.chao.asia',
@@ -18,7 +20,9 @@ function getUserProxy(): string | null {
   return null;
 }
 
-async function proxyFetch(url: string, options?: RequestInit): Promise<Response> {
+const PROXY_REQUEST_TIMEOUT_MS = 120_000;
+
+export async function proxyFetch(url: string, options?: RequestInit): Promise<Response> {
   // 构建代理列表：用户自定义 + 默认
   const proxies: string[] = [];
   const userProxy = getUserProxy();
@@ -30,7 +34,7 @@ async function proxyFetch(url: string, options?: RequestInit): Promise<Response>
   for (const proxyUrl of proxies) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s 超时
+      const timeoutId = setTimeout(() => controller.abort(), PROXY_REQUEST_TIMEOUT_MS);
 
       const proxyHeaders: Record<string, string> = {
         'X-Target-URL': url,
@@ -43,21 +47,26 @@ async function proxyFetch(url: string, options?: RequestInit): Promise<Response>
         if (h['Content-Type']) proxyHeaders['Content-Type'] = h['Content-Type'];
       }
 
-      const resp = await fetch(proxyUrl, {
-        method: 'POST',
-        headers: proxyHeaders,
-        body: options?.body,
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      let resp: Response;
+      try {
+        resp = await fetch(proxyUrl, {
+          method: options?.method || 'POST',
+          headers: proxyHeaders,
+          body: options?.body,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (resp.ok || resp.status >= 400) {
         return resp;
       }
       lastError = `Proxy returned ${resp.status}`;
     } catch (err: any) {
-      lastError = err.name === 'AbortError' ? `Proxy ${proxyUrl} timed out` : err.message;
+      lastError = err.name === 'AbortError'
+        ? `Proxy ${proxyUrl} timed out after ${PROXY_REQUEST_TIMEOUT_MS / 1000}s`
+        : err.message;
       continue;
     }
   }
@@ -700,7 +709,9 @@ const PROVIDER_BASE_URLS: Record<string, string> = {
 };
 
 const PROVIDER_MAX_TOKENS: Record<string, number> = {
-  deepseek: 8192,
+  // DeepSeek V4 supports substantially larger outputs. 8K was too small for
+  // detailed worksheet JSON and caused finish_reason=length with empty content.
+  deepseek: 32768,
   kimi: 16384,
 };
 
@@ -728,8 +739,8 @@ const callOpenAICompatibleJSON = async (
   const attempts = provider === 'deepseek'
     ? [
         { label: 'json_mode', responseFormat: true, temperature: 0.2, maxTokens },
-        { label: 'plain_json', responseFormat: false, temperature: 0.2, maxTokens },
-        { label: 'plain_json_low_temp', responseFormat: false, temperature: 0.1, maxTokens },
+        { label: 'plain_json', responseFormat: false, temperature: 0.2, maxTokens: Math.max(maxTokens, 49152) },
+        { label: 'plain_json_low_temp', responseFormat: false, temperature: 0.1, maxTokens: Math.max(maxTokens, 65536) },
       ]
     : [
         { label: 'json_mode', responseFormat: true, temperature: 0.5, maxTokens },
@@ -749,6 +760,11 @@ const callOpenAICompatibleJSON = async (
 
     if (attempt.responseFormat) {
       body.response_format = { type: 'json_object' };
+    }
+    if (provider === 'deepseek') {
+      // V4 defaults to thinking mode. Structured worksheet generation is more
+      // reliable and considerably faster in non-thinking mode.
+      body.thinking = { type: 'disabled' };
     }
 
     const response = await proxyFetch(url, {
@@ -787,6 +803,8 @@ const callOpenAICompatibleJSON = async (
         `API returned empty content from selected model ${provider}/${modelName} (${attempt.label}, finish_reason: ${finishReason}).`
       );
       console.warn(lastError.message);
+      // A length stop is recoverable: the following DeepSeek attempt receives
+      // a progressively larger output budget.
       continue;
     }
 
@@ -867,8 +885,19 @@ ${buildSectionPromptHeader(article, difficulty, 'Title, article snippet, and sum
 Create:
 1. A concise worksheet title.
 2. articleSnippet: about 150-220 words copied verbatim from the beginning or core of the article.
-3. summary: one paragraph with EXACTLY five [BLANK] tokens.
-4. summary.blanks: EXACTLY five answers, each answer must appear verbatim in the article.
+3. summary.paragraph: ONE coherent paragraph summarizing the article. It MUST contain inline [BLANK] markers. A [BLANK] is the literal text [BLANK] (both square brackets + the word BLANK). Each [BLANK] replaces exactly one answer phrase from the article.
+4. summary.blanks: an array of answer strings, in the SAME left-to-right order as the [BLANK] markers. blanks[i] is the exact phrase you removed from the paragraph to create the i-th [BLANK].
+
+CRITICAL RULES for summary:
+- Use the literal token [BLANK] — do NOT use underscores (____), parentheses, or a chevron. Never number the blanks (no [BLANK1], no "blank 1").
+- Choose a specific high-value phrase from the article for each blank, then remove that phrase from the paragraph and put [BLANK] exactly where it was. Blanks must be verbatim extracts from the article (per the word-count guidance below).
+- The paragraph must read naturally with the blanks; blanks[i] must be the exact text that was replaced.
+
+Example of the required style:
+  "paragraph": "Studies show that [BLANK] improves memory, while multitasking can reduce [BLANK].",
+  "blanks": ["regular sleep", "concentration"]
+
+BEFORE RETURNING: count the [BLANK] tokens inside summary.paragraph. There MUST be exactly as many as there are entries in summary.blanks (one [BLANK] per answer, no more, no fewer). If the counts differ, fix the paragraph or the blanks until they match exactly.
 
 Difficulty guidance:
 - Summary blank max words: ${profile.summary.maxBlankWords}
@@ -880,11 +909,38 @@ JSON schema:
   "title": "Worksheet title",
   "articleSnippet": "verbatim article excerpt",
   "summary": {
-    "paragraph": "Summary sentence with [BLANK] ... exactly five blanks total.",
+    "paragraph": "Summary sentence with [BLANK] ... one [BLANK] per answer, in order.",
     "blanks": ["answer1", "answer2", "answer3", "answer4", "answer5"]
   }
 }
 `;
+}
+
+// DeepSeek sometimes writes a coherent summary but omits the [BLANK] markers
+// (or leaves some answers un-blanked). This repair reconciles the paragraph
+// with the answer list: it injects each answer verbatim into the paragraph as
+// [BLANK], then trims the answer list to the final [BLANK] count so the
+// summary, blanks, and keys always line up.
+export function repairSummary(input: { paragraph: string; blanks: string[] }): { paragraph: string; blanks: string[] } {
+  let paragraph = (input.paragraph || '').replace(/\[BLANK\d*\]/gi, '[BLANK]');
+  const blanks = (Array.isArray(input.blanks) ? input.blanks : [])
+    .map(b => (typeof b === 'string' ? b.trim() : ''))
+    .filter(Boolean);
+
+  let blankCount = (paragraph.match(/\[BLANK\]/g) || []).length;
+
+  // Inject missing answers verbatim into the paragraph until counts line up.
+  while (blankCount < blanks.length) {
+    const answer = blanks[blankCount];
+    if (!answer) break;
+    const idx = paragraph.indexOf(answer);
+    if (idx === -1) break; // answer not present verbatim; can't safely place it
+    paragraph = paragraph.slice(0, idx) + '[BLANK]' + paragraph.slice(idx + answer.length);
+    blankCount++;
+  }
+
+  // Drop any answers we could not place so keys/blanks match the paragraph.
+  return { paragraph, blanks: blankCount < blanks.length ? blanks.slice(0, blankCount) : blanks };
 }
 
 function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number): string {
@@ -1213,6 +1269,13 @@ async function generateSectionedWorksheet(
     ? ensureArray(writingPart.writingWorkshop?.qaChain, 'writingWorkshop.qaChain')
     : [];
 
+  // Reconcile summary paragraph [BLANK] markers with the answer list so the
+  // summary, blanks, and keys always match.
+  const repairedSummary = repairSummary({
+    paragraph: summaryPart.summary?.paragraph || '',
+    blanks: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
+  });
+
   return {
     title: summaryPart.title || 'Untitled Worksheet',
     articleSnippet: summaryPart.articleSnippet || article.slice(0, 900),
@@ -1221,10 +1284,7 @@ async function generateSectionedWorksheet(
       nameLabel: 'Name',
       scoreLabel: 'Score',
     },
-    summary: {
-      paragraph: summaryPart.summary?.paragraph || '',
-      blanks: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
-    },
+    summary: repairedSummary,
     multipleChoice,
     syntaxDeconstruction,
     writingWorkshop: {
@@ -1234,7 +1294,7 @@ async function generateSectionedWorksheet(
       criticalThinking: options.writing_critical ? (writingPart.writingWorkshop?.criticalThinking || '') : '',
     },
     keys: {
-      summary: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
+      summary: repairedSummary.blanks,
       mc: multipleChoice.reduce((acc: Record<string, string>, q: any) => {
         if (q.id && q.answer) acc[q.id] = q.answer;
         return acc;
