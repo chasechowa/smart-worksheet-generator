@@ -10,7 +10,7 @@
 
 ## 1. 一句话现状
 
-**线上已部署到 CF（`comprequiz.chao.asia`）：DeepSeek V4 生成已修复，B2 summary 现已强制恰好 5 个有效空位 + 自动重试（≤3 次），已上线。**
+**线上已部署到 CF（`comprequiz.chao.asia`）：B2 现采用共享文章证据地图，Summary 强制五类信息覆盖，MCQ 固定覆盖主旨、隐含/跨段推断、证据链、作者态度与篇章功能。**
 本地与远程已同步（`ea9e4c8`）。CF 更新是**手动 wrangler 部署**，不依赖 GitHub push。
 
 ---
@@ -42,8 +42,8 @@
 
 ## 4. 当前线上状态
 
-- 最新 CF 部署：**`038871c0`**（source `349625c`），Production / `main`
-- 线上 serving：`dist/index-BMLCgdKj.js`（当前 build）
+- 最新 CF 部署：**`5192e2c3`**（source `aefadb6`），Production / `main`
+- 线上 serving：`dist/index-Bz4XWNgl.js`（当前 build）
 - 验证线上版本：`curl -s -H 'Cache-Control: no-cache' https://comprequiz.chao.asia/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js'`
   - 若结果 ≠ 本地 `grep -oE 'assets/index-.*\.js' dist/index.html`，说明 CDN 边缘缓存了旧 HTML，**强刷 / 用 curl 加 `Cache-Control: no-cache`** 即可（见【缓存注意】）。
 - 上一版部署：`b552e062`（`835d5bd`）；再之前 `bac7de3d`（`dcbbb9c`）、2 个月前的 `2a39a76`。
@@ -61,6 +61,7 @@
 
 ## 6. 最近改动（commit 内容速记）
 
+- `aefadb6`（已部署 `5192e2c3`）— **B2 深度阅读改造**：先生成全文证据地图；Summary 五类信息覆盖；MCQ 固定十题能力蓝图；B2 推断/综合题强制 evidence、reasoningSteps、skillTarget、scope；不合格时仅重生成对应五题批次。
 - **`038871c0`（线上，source `349625c`）— B2 Summary 稳定性**：强制恰好 5 空 5 答案；答案非空/不重复/原文可定位；不合格只重生成 Summary（≤3 次）；3 次仍失败则明确报错、不回退到不完整结果；修正提示词示例。146/146 测试通过。
 - `835d5bd`（已部署 `b552e062`）— **DeepSeek V4 生成修复 + summary 精修**：deepseek 关闭 thinking、max_tokens 32k、配置连接走代理；summary 提示词强制内联 `[BLANK]`、新增 `repairSummary()` 兜底。
 - `dcbbb9c`（已部署 `bac7de3d`）— **移除 Electron，纯 web/Cloudflare 版**：删 `electron/`、`release/`，裁剪依赖，`aiService`/`storageService` 只走 CF Worker 代理 + localStorage；PDF 导出改浏览器打印。
@@ -84,7 +85,7 @@ DeepSeek 现网有效模型（**其他 id 如 `deepseek-chat`/`deepseek-reasoner
 
 ## 8. 验证 / 测试
 
-- 测试：`npm test`（vitest）。最近一次 **146/146 通过**（11 个文件）。
+- 测试：`npm test`（vitest）。最近一次 **150/150 通过**（12 个文件）。
 - 构建：`npm run build`（先 `build:css` 再 vite 打包到 `dist/`）。Producer build 通过。
 - 校验逻辑：`validators/`（summary/mc/syntax/writing/keys 分模块），`services/validatorService.ts` 调用 `validateAll()`。
 
@@ -109,6 +110,7 @@ CF Pages 自定义域名走 Cloudflare CDN。**刚部署完，边缘可能缓存
 
 | 时间 | 动作 | 结果 |
 | --- | --- | --- |
+| 2026-09-09 | B2 深度阅读改造：文章证据地图、Summary 五类覆盖、固定 MCQ 蓝图、B2 证据链硬校验与批次局部重生成；commit `aefadb6`；部署 CF Pages | ✅ 150/150；部署 `5192e2c3`，线上 `index-Bz4XWNgl.js` |
 | 2026-09-09 | Codex：B2 Summary 稳定性修复（严格 5 空 5 答案、原文可定位、失败仅重生成 Summary ≤3 次、修提示词示例）；部署 CF Pages | ✅ 146/146；部署 `038871c0`，线上 `index-BMLCgdKj.js` |
 | 2026-09-09 | 我已核验线上 `index-BMLCgdKj.js`、部署 `038871c0`、测试 146/146 | ✅ 与 Codex 报告一致 |
 | 2026-09-09 | 提交 Codex 改动 + 同步本文件 → `ea9e4c8`，并 `git push origin main` | ✅ `dcbbb9c..ea9e4c8`，远程已同步 |
