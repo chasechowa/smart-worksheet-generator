@@ -323,18 +323,19 @@ function buildLevelMCBlueprint(difficulty: Difficulty): string {
     return `
     B2 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS):
     - Q1 Main Idea, cognitiveLevel: synthesis. Test the central argument across the whole article.
-    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for a central stated fact, not trivia.
-    - Q3 Literal Comprehension, cognitiveLevel: retrieval. Ask for another central stated detail that supports the argument.
-    - Q4 Inference, cognitiveLevel: inference. Require reading between the lines across one paragraph.
-    - Q5 Inference, cognitiveLevel: inference. Require connecting details from two parts of the article.
+    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for the ONE central stated fact that best supports the argument, never trivia.
+    - Q3 Inference, cognitiveLevel: inference. Test hidden meaning within one paragraph; the answer must not be stated verbatim.
+    - Q4 Inference, cognitiveLevel: inference. Require connecting evidence from two different parts of the article.
+    - Q5 Inference, cognitiveLevel: synthesis. Test an unstated assumption, limitation, or likely consequence.
     - Q6 Evidence Reasoning, cognitiveLevel: inference. Claim question; link it to Q7 with evidencePairLink.
     - Q7 Evidence Reasoning, cognitiveLevel: inference. Evidence question for Q6; options must be short verbatim quotations.
-    - Q8 Vocabulary in Context, cognitiveLevel: inference. Target a B2 academic/polysemous word or phrase.
-    - Q9 Inference, cognitiveLevel: synthesis. Require evaluating an implication or likely consequence.
-    - Q10 Structure / Function / Synthesis, cognitiveLevel: synthesis. Ask about author purpose, structure, or how an example supports the argument.
+    - Q8 Structure / Function / Synthesis, cognitiveLevel: synthesis. ALWAYS test the author's attitude, tone, stance, or a change in stance using at least two language signals.
+    - Q9 Vocabulary in Context, cognitiveLevel: inference. Target a B2 academic/polysemous word or phrase.
+    - Q10 Structure / Function / Synthesis, cognitiveLevel: synthesis. Test author purpose, paragraph function, argumentative structure, or why evidence is included.
 
     B2 BOUNDARIES:
-    - Maximum 2 direct retrieval questions; no standalone trivia such as "Which company..." unless it supports a broader idea.
+    - Exactly 1 direct retrieval question (Q2); no standalone trivia such as "Which company...", dates, names, or isolated numbers.
+    - Q1, Q4, Q5, Q8, and Q10 must require whole-text or cross-paragraph understanding.
     - The evidence pair must directly prove a claim, not merely mention the same topic.
     - Distractors should be plausible text-based misreadings, not obviously false choices.
     - Avoid C1-only demands such as 3-step abstract critique or C1/C2 vocabulary options.
@@ -877,21 +878,28 @@ ${article}
 `;
 }
 
-function buildSummarySectionPrompt(article: string, difficulty: Difficulty): string {
+function buildSummarySectionPrompt(article: string, difficulty: Difficulty, analysis?: ArticleAnalysisMap | null): string {
   const profile = getDifficultyProfile(difficulty);
   return `
 ${buildSectionPromptHeader(article, difficulty, 'Title, article snippet, and summary completion')}
+${formatAnalysisMap(analysis)}
 
 Create:
 1. A concise worksheet title.
 2. articleSnippet: about 150-220 words copied verbatim from the beginning or core of the article.
 3. summary.paragraph: ONE coherent paragraph summarizing the article. It MUST contain inline [BLANK] markers. A [BLANK] is the literal text [BLANK] (both square brackets + the word BLANK). Each [BLANK] replaces exactly one answer phrase from the article.
 4. summary.blanks: an array of answer strings, in the SAME left-to-right order as the [BLANK] markers. blanks[i] is the exact phrase you removed from the paragraph to create the i-th [BLANK].
+${difficulty === 'B2' ? `5. summary.blankTargets: EXACTLY five objects, aligned with summary.blanks, using each role exactly once:
+   central-concept, cause-or-mechanism, key-development, contrast-or-limitation, result-or-conclusion.
+   Each object contains answer, role, and sourceArea. Use at least three different sourceArea labels.` : ''}
 
 CRITICAL RULES for summary:
 - Use the literal token [BLANK] — do NOT use underscores (____), parentheses, or a chevron. Never number the blanks (no [BLANK1], no "blank 1").
 - Choose a specific high-value phrase from the article for each blank, then remove that phrase from the paragraph and put [BLANK] exactly where it was. Blanks must be verbatim extracts from the article (per the word-count guidance below).
 - The paragraph must read naturally with the blanks; blanks[i] must be the exact text that was replaced.
+${difficulty === 'B2' ? `- Cover the article's whole argument, not only its opening. The five blanks must test five different information functions.
+- Draw answers from at least three different paragraphs or widely separated information regions.
+- Put no more than two [BLANK] tokens in one sentence.` : ''}
 
 Example of the required style:
   "paragraph": "[BLANK] improves memory, while [BLANK] reduces focus. Researchers also connect [BLANK] with learning, [BLANK] with recovery, and [BLANK] with performance.",
@@ -910,7 +918,14 @@ JSON schema:
   "articleSnippet": "verbatim article excerpt",
   "summary": {
     "paragraph": "Summary sentence with [BLANK] ... one [BLANK] per answer, in order.",
-    "blanks": ["answer1", "answer2", "answer3", "answer4", "answer5"]
+    "blanks": ["answer1", "answer2", "answer3", "answer4", "answer5"]${difficulty === 'B2' ? `,
+    "blankTargets": [
+      { "answer": "answer1", "role": "central-concept", "sourceArea": "P1" },
+      { "answer": "answer2", "role": "cause-or-mechanism", "sourceArea": "P2" },
+      { "answer": "answer3", "role": "key-development", "sourceArea": "P3" },
+      { "answer": "answer4", "role": "contrast-or-limitation", "sourceArea": "P4" },
+      { "answer": "answer5", "role": "result-or-conclusion", "sourceArea": "P5" }
+    ]` : ''}
   }
 }
 `;
@@ -943,10 +958,26 @@ export function repairSummary(input: { paragraph: string; blanks: string[] }): {
   return { paragraph, blanks: blankCount < blanks.length ? blanks.slice(0, blankCount) : blanks };
 }
 
+interface ArticleAnalysisMap {
+  centralThesis: string;
+  paragraphFunctions: Array<{ paragraph: string; function: string }>;
+  keyFacts: string[];
+  implicitInferences: Array<{ inference: string; evidence: string[] }>;
+  logicalRelations: Array<{ relation: string; evidence: string[] }>;
+  authorAttitude: { label: string; evidence: string[] };
+  evidencePairCandidates: Array<{ claim: string; evidence: string[] }>;
+}
+
+function formatAnalysisMap(analysis?: ArticleAnalysisMap | null): string {
+  if (!analysis) return '';
+  return `\nAUTHORITATIVE ARTICLE MAP (use this to design questions; do not copy it into the worksheet):\n${JSON.stringify(analysis)}\n`;
+}
+
 export function isCompleteSummary(
   input: { paragraph: string; blanks: string[] },
   article: string,
   maxBlankWords: number,
+  blankTargets?: SummaryBlankTarget[],
 ): boolean {
   const repaired = repairSummary(input);
   const blankCount = (repaired.paragraph.match(/\[BLANK\]/g) || []).length;
@@ -956,10 +987,24 @@ export function isCompleteSummary(
   const normalizedAnswers = repaired.blanks.map(answer => answer.toLocaleLowerCase().replace(/\s+/g, ' ').trim());
   if (new Set(normalizedAnswers).size !== 5) return false;
 
-  return normalizedAnswers.every(answer => {
+  const answersValid = normalizedAnswers.every(answer => {
     const wordCount = answer.split(/\s+/).filter(Boolean).length;
     return Boolean(answer) && wordCount <= maxBlankWords && normalizedArticle.includes(answer);
   });
+  if (!answersValid) return false;
+
+  if (blankTargets) {
+    const requiredRoles = new Set<string>(['central-concept', 'cause-or-mechanism', 'key-development', 'contrast-or-limitation', 'result-or-conclusion']);
+    if (blankTargets.length !== 5) return false;
+    const roles = new Set<string>(blankTargets.map(target => target.role));
+    if (roles.size !== requiredRoles.size || [...requiredRoles].some(role => !roles.has(role))) return false;
+    const targetAnswers = blankTargets.map(target => target.answer.toLocaleLowerCase().replace(/\s+/g, ' ').trim());
+    if (targetAnswers.some((answer, index) => answer !== normalizedAnswers[index])) return false;
+    const sourceAreas = new Set(blankTargets.map(target => target.sourceArea.trim()).filter(Boolean));
+    if (sourceAreas.size < 3) return false;
+  }
+
+  return true;
 }
 
 async function generateCompleteSummarySection(
@@ -967,9 +1012,10 @@ async function generateCompleteSummarySection(
   difficulty: Difficulty,
   aiConfig: AIConfig,
   onProgress?: (message: string) => void,
+  analysis?: ArticleAnalysisMap | null,
 ): Promise<SummarySectionResponse> {
   const profile = getDifficultyProfile(difficulty);
-  const basePrompt = buildSummarySectionPrompt(article, difficulty);
+  const basePrompt = buildSummarySectionPrompt(article, difficulty, analysis);
   let lastResult: SummarySectionResponse | null = null;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -986,7 +1032,8 @@ async function generateCompleteSummarySection(
       paragraph: lastResult.summary?.paragraph || '',
       blanks: Array.isArray(lastResult.summary?.blanks) ? lastResult.summary.blanks : [],
     });
-    if (isCompleteSummary(repaired, article, profile.summary.maxBlankWords)) {
+    const blankTargets = Array.isArray(lastResult.summary?.blankTargets) ? lastResult.summary.blankTargets : undefined;
+    if (isCompleteSummary(repaired, article, profile.summary.maxBlankWords, difficulty === 'B2' ? blankTargets : undefined)) {
       return { ...lastResult, summary: repaired };
     }
   }
@@ -994,20 +1041,33 @@ async function generateCompleteSummarySection(
   throw new Error('Summary generation did not produce exactly five valid blanks after 3 attempts. Please retry once more or switch to DeepSeek V4 Pro.');
 }
 
-function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number): string {
+function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number, analysis?: ArticleAnalysisMap | null): string {
   const profile = getDifficultyProfile(difficulty);
+  const fullBlueprint = buildLevelMCBlueprint(difficulty);
+  const requestedBlueprint = difficulty === 'B2'
+    ? fullBlueprint.split('\n').filter(line => {
+        const match = line.match(/- Q(\d+)/);
+        return !match || (Number(match[1]) >= start && Number(match[1]) <= end);
+      }).join('\n')
+    : fullBlueprint;
   return `
 ${buildSectionPromptHeader(article, difficulty, `Multiple choice questions q${start}-q${end}`)}
+${formatAnalysisMap(analysis)}
 
 Generate ONLY questions q${start} through q${end}. Do not generate other question ids.
 
 Authoritative slot blueprint:
-${buildLevelMCBlueprint(difficulty)}
+${requestedBlueprint}
 
 Quality rules:
 - ${profile.mcQuestions.guidance}
 - Correct answers must be text-supported and paraphrased unless the slot is Vocabulary in Context or Evidence Reasoning quotes.
 - Every question needs: id, type, cognitiveLevel, question, options, answer, explanation.
+- Every wrong option needs distractor metadata with one permitted misreading pattern and a concise rationale.
+- For B2 inference/synthesis items, include evidence[] with at least two short references and reasoningSteps[] with at least two real reasoning steps.
+- For every B2 item include skillTarget and scope (single-paragraph, cross-paragraph, or whole-text).
+- A B2 item labelled inference must not be answerable by locating one sentence or matching keywords.
+- Q8 must explicitly assess author attitude/tone/stance and cite at least two wording signals.
 - options must be an array of exactly four raw option texts. No A/B/C/D prefixes.
 - answer must be one letter: A, B, C, or D.
 - For C1 Inference and Structure / Function / Synthesis questions, include evidence[] with at least 2 references and reasoningSteps[] with at least 2 steps.
@@ -1028,8 +1088,11 @@ JSON schema:
       "options": ["...", "...", "...", "..."],
       "answer": "A",
       "explanation": "...",
-      "evidence": ["optional for C1 inference/synthesis"],
-      "reasoningSteps": ["optional for C1 inference/synthesis"],
+      "skillTarget": "cross-paragraph inference",
+      "scope": "cross-paragraph",
+      "evidence": ["Para2: short reference", "Para5: short reference"],
+      "reasoningSteps": ["Connect the first detail to the later contrast", "Infer the supported implication"],
+      "distractors": { "B": { "pattern": "Too Broad", "rationale": "Overstates the evidence" } },
       "evidencePairLink": { "claimQuestionId": "q4", "evidenceQuestionId": "q5" }
     }
   ]
@@ -1170,7 +1233,14 @@ interface SummarySectionResponse {
   summary?: {
     paragraph?: string;
     blanks?: string[];
+    blankTargets?: SummaryBlankTarget[];
   };
+}
+
+interface SummaryBlankTarget {
+  answer: string;
+  role: 'central-concept' | 'cause-or-mechanism' | 'key-development' | 'contrast-or-limitation' | 'result-or-conclusion';
+  sourceArea: string;
 }
 
 interface MCSectionResponse {
@@ -1213,6 +1283,173 @@ async function generateJSONSection<T = any>(
   }
 }
 
+function buildArticleAnalysisPrompt(article: string): string {
+  return `
+Analyze the article before worksheet generation. Return ONLY compact valid JSON.
+This is an internal evidence map, not student-facing content.
+
+Required fields:
+- centralThesis: one precise sentence covering the whole article.
+- paragraphFunctions: each major paragraph/section labelled P1, P2, etc. with its argumentative function.
+- keyFacts: 3-6 central stated facts, never trivia.
+- implicitInferences: at least 4 unstated but text-supported implications, each with two evidence references when possible.
+- logicalRelations: cause/effect, contrast, qualification, limitation, or development links with evidence references.
+- authorAttitude: a precise stance/tone label plus at least two wording signals.
+- evidencePairCandidates: at least 2 inferential claims, each with quotations or short evidence references that directly prove it.
+
+Do not use outside knowledge. Distinguish what is stated from what is inferred.
+
+JSON schema:
+{
+  "centralThesis": "...",
+  "paragraphFunctions": [{ "paragraph": "P1", "function": "introduces the problem" }],
+  "keyFacts": ["..."],
+  "implicitInferences": [{ "inference": "...", "evidence": ["P2", "P5"] }],
+  "logicalRelations": [{ "relation": "...", "evidence": ["P3", "P4"] }],
+  "authorAttitude": { "label": "cautiously supportive", "evidence": ["short wording signal 1", "short wording signal 2"] },
+  "evidencePairCandidates": [{ "claim": "...", "evidence": ["short quote 1", "short quote 2"] }]
+}
+
+Article:
+${article}
+`;
+}
+
+function isUsableArticleAnalysis(value: any): value is ArticleAnalysisMap {
+  return Boolean(
+    value &&
+    typeof value.centralThesis === 'string' && value.centralThesis.trim() &&
+    Array.isArray(value.paragraphFunctions) && value.paragraphFunctions.length >= 2 &&
+    Array.isArray(value.keyFacts) && value.keyFacts.length >= 3 &&
+    Array.isArray(value.implicitInferences) && value.implicitInferences.length >= 3 &&
+    value.authorAttitude && Array.isArray(value.authorAttitude.evidence) && value.authorAttitude.evidence.length >= 2 &&
+    Array.isArray(value.evidencePairCandidates) && value.evidencePairCandidates.length >= 1
+  );
+}
+
+async function generateArticleAnalysisMap(
+  article: string,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+): Promise<ArticleAnalysisMap> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const result = await generateJSONSection<ArticleAnalysisMap>(
+      attempt === 1 ? 'Mapping article evidence' : 'Repairing article evidence map',
+      buildArticleAnalysisPrompt(article),
+      aiConfig,
+      onProgress,
+      6000,
+    );
+    if (isUsableArticleAnalysis(result)) return result;
+  }
+  throw new Error('Could not build a reliable article evidence map. Please retry generation.');
+}
+
+const B2_MC_SLOT_RULES: Record<number, { type: MCQuestion['type']; level: NonNullable<MCQuestion['cognitiveLevel']>; scope: NonNullable<MCQuestion['scope']> }> = {
+  1: { type: 'Main Idea', level: 'synthesis', scope: 'whole-text' },
+  2: { type: 'Literal Comprehension', level: 'retrieval', scope: 'single-paragraph' },
+  3: { type: 'Inference', level: 'inference', scope: 'single-paragraph' },
+  4: { type: 'Inference', level: 'inference', scope: 'cross-paragraph' },
+  5: { type: 'Inference', level: 'synthesis', scope: 'whole-text' },
+  6: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
+  7: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
+  8: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
+  9: { type: 'Vocabulary in Context', level: 'inference', scope: 'single-paragraph' },
+  10: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
+};
+
+export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
+  if (!Array.isArray(questions) || questions.length !== 10) {
+    return Array.from({ length: 10 }, (_, index) => `q${index + 1}`);
+  }
+
+  const invalid = new Set<string>();
+  const byId = new Map(questions.map(question => [question.id, question]));
+  const reasoningSlots = new Set([1, 3, 4, 5, 6, 7, 8, 10]);
+
+  for (let slot = 1; slot <= 10; slot++) {
+    const id = `q${slot}`;
+    const question = byId.get(id);
+    const rule = B2_MC_SLOT_RULES[slot];
+    if (!question) {
+      invalid.add(id);
+      continue;
+    }
+    if (question.type !== rule.type || question.cognitiveLevel !== rule.level || question.scope !== rule.scope) invalid.add(id);
+    if (!question.question?.trim() || question.options?.length !== 4 || !/^[A-D]$/.test(question.answer || '') || !question.explanation?.trim()) invalid.add(id);
+    if (slot !== 2 && /^according to\b/i.test(question.question.trim())) invalid.add(id);
+    if (reasoningSlots.has(slot)) {
+      if (!Array.isArray(question.evidence) || question.evidence.length < 2) invalid.add(id);
+      if (!Array.isArray(question.reasoningSteps) || question.reasoningSteps.length < 2) invalid.add(id);
+    }
+    if (!question.skillTarget?.trim()) invalid.add(id);
+    const wrongLetters = ['A', 'B', 'C', 'D'].filter(letter => letter !== question.answer);
+    if (!question.distractors || wrongLetters.some(letter => !question.distractors?.[letter]?.rationale)) invalid.add(id);
+  }
+
+  const attitude = byId.get('q8');
+  if (!attitude || !/(attitude|tone|stance|viewpoint|position)/i.test(`${attitude.question} ${attitude.skillTarget || ''}`)) invalid.add('q8');
+
+  const q6 = byId.get('q6');
+  const q7 = byId.get('q7');
+  const pairValid = q6?.evidencePairLink?.claimQuestionId === 'q6' && q6.evidencePairLink.evidenceQuestionId === 'q7' &&
+    q7?.evidencePairLink?.claimQuestionId === 'q6' && q7.evidencePairLink.evidenceQuestionId === 'q7';
+  if (!pairValid) {
+    invalid.add('q6');
+    invalid.add('q7');
+  }
+
+  const seenQuestions = new Map<string, string>();
+  for (const question of questions) {
+    const normalized = question.question?.toLocaleLowerCase().replace(/\W+/g, ' ').trim();
+    if (!normalized) continue;
+    const existing = seenQuestions.get(normalized);
+    if (existing) {
+      invalid.add(existing);
+      invalid.add(question.id);
+    } else {
+      seenQuestions.set(normalized, question.id);
+    }
+  }
+
+  return [...invalid].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+}
+
+async function generateCompleteMCSection(
+  article: string,
+  difficulty: Difficulty,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+  analysis?: ArticleAnalysisMap | null,
+): Promise<MCSectionResponse> {
+  const generateBatch = (start: number, end: number, correction = '') => generateJSONSection<MCSectionResponse>(
+    correction ? `Regenerating questions q${start}-q${end}` : `Generating logical analysis q${start}-q${end}`,
+    buildMCBatchPrompt(article, difficulty, start, end, analysis) + correction,
+    aiConfig,
+    onProgress,
+  );
+
+  let [first, second] = await Promise.all([generateBatch(1, 5), generateBatch(6, 10)]);
+  if (difficulty !== 'B2') {
+    return { multipleChoice: [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')] };
+  }
+
+  for (let round = 0; round < 3; round++) {
+    const combined = [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')];
+    const invalidIds = getInvalidB2QuestionIds(combined);
+    if (invalidIds.length === 0) return { multipleChoice: combined };
+    if (round === 2) break;
+
+    const correction = `\nRETRY CORRECTION: The previous batch failed hard validation for: ${invalidIds.join(', ')}. Follow every assigned slot exactly, including type, cognitiveLevel, skillTarget, scope, two evidence references, two reasoning steps, distractor metadata, and the q6/q7 link.`;
+    const jobs: Promise<void>[] = [];
+    if (invalidIds.some(id => Number(id.slice(1)) <= 5)) jobs.push(generateBatch(1, 5, correction).then(value => { first = value; }));
+    if (invalidIds.some(id => Number(id.slice(1)) >= 6)) jobs.push(generateBatch(6, 10, correction).then(value => { second = value; }));
+    await Promise.all(jobs);
+  }
+
+  throw new Error('B2 question generation did not meet the inference and evidence requirements after targeted retries. Please retry once more.');
+}
+
 async function runWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -1250,18 +1487,18 @@ async function generateSectionedWorksheet(
     onProgress?.(`${label} (${Math.min(completedTasks + 1, selectedTasks.length)}/${selectedTasks.length})...`);
   };
 
+  // B2 quality depends on a shared interpretation of the whole article. Build
+  // one compact map first, then let Summary and both MC batches use it.
+  const analysis = difficulty === 'B2' && (options.summary || options.mc)
+    ? await generateArticleAnalysisMap(article, aiConfig, onProgress)
+    : null;
+
   const summaryPromise = options.summary
-    ? generateCompleteSummarySection(article, difficulty, aiConfig, mark)
+    ? generateCompleteSummarySection(article, difficulty, aiConfig, mark, analysis)
     : Promise.resolve({} as SummarySectionResponse);
 
   const mcPromise = options.mc
-    ? Promise.all([
-        generateJSONSection<MCSectionResponse>('Generating logical analysis q1-q5', buildMCBatchPrompt(article, difficulty, 1, 5), aiConfig, mark),
-        generateJSONSection<MCSectionResponse>('Generating logical analysis q6-q10', buildMCBatchPrompt(article, difficulty, 6, 10), aiConfig, mark),
-      ])
-      .then(parts => ({
-        multipleChoice: parts.flatMap(part => ensureArray(part.multipleChoice, 'multipleChoice')),
-      }))
+    ? generateCompleteMCSection(article, difficulty, aiConfig, mark, analysis)
       .then(part => {
         completedTasks++;
         onProgress?.(`Questions complete (${completedTasks}/${selectedTasks.length})...`);

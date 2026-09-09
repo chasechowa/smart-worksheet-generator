@@ -21,6 +21,15 @@ const C1_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
   'Structure / Function / Synthesis': 2,
 };
 
+const B2_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
+  'Main Idea': 1,
+  'Literal Comprehension': 1,
+  'Inference': 3,
+  'Evidence Reasoning': 2,
+  'Vocabulary in Context': 1,
+  'Structure / Function / Synthesis': 2,
+};
+
 const A2_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
   'Main Idea': 1,
   'Literal Comprehension': 6,
@@ -42,6 +51,7 @@ const B1_EXPECTED_TYPE_COUNTS: Record<MCQuestionType, number> = {
 function getExpectedTypeCounts(difficulty?: Difficulty): Record<MCQuestionType, number> {
   if (difficulty === 'A2') return A2_EXPECTED_TYPE_COUNTS;
   if (difficulty === 'B1') return B1_EXPECTED_TYPE_COUNTS;
+  if (difficulty === 'B2') return B2_EXPECTED_TYPE_COUNTS;
   if (difficulty === 'C1') return C1_EXPECTED_TYPE_COUNTS;
   return DEFAULT_EXPECTED_TYPE_COUNTS;
 }
@@ -442,7 +452,7 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     const actual = typeCounts[typeName] || 0;
     if (actual !== expectedCount) {
       issues.push({
-        type: 'rule', section: 'mc', severity: 'warning',
+        type: 'rule', section: 'mc', severity: difficulty === 'B2' ? 'error' : 'warning',
         message: `${difficulty === 'C1' ? 'C1: ' : ''}Expected exactly ${expectedCount} "${typeName}" question(s), got ${actual}`,
         suggestion: `Adjust question types to match the distribution`,
       });
@@ -572,7 +582,7 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     difficulty === 'A2' ? 8 :
     difficulty === 'B1' ? 5 :
     difficulty === 'C1' ? 1 :
-    difficulty === 'B2' ? 2 :
+    difficulty === 'B2' ? 1 :
     2;
   const minInference =
     difficulty === 'A2' ? 1 :
@@ -607,6 +617,48 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
       message: `Too few synthesis-level questions (${synthesisCount}/10). At least ${minSynthesis} required.`,
       suggestion: 'Add a question requiring transfer, evaluation, or cross-passage reasoning',
     });
+  }
+
+  if (difficulty === 'B2') {
+    const expectedSlots: Record<string, { type: MCQuestionType; level: string; scope: string }> = {
+      q1: { type: 'Main Idea', level: 'synthesis', scope: 'whole-text' },
+      q2: { type: 'Literal Comprehension', level: 'retrieval', scope: 'single-paragraph' },
+      q3: { type: 'Inference', level: 'inference', scope: 'single-paragraph' },
+      q4: { type: 'Inference', level: 'inference', scope: 'cross-paragraph' },
+      q5: { type: 'Inference', level: 'synthesis', scope: 'whole-text' },
+      q6: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
+      q7: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
+      q8: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
+      q9: { type: 'Vocabulary in Context', level: 'inference', scope: 'single-paragraph' },
+      q10: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
+    };
+    const reasoningIds = new Set(['q1', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q10']);
+
+    for (const question of fixedMC) {
+      const expected = expectedSlots[question.id];
+      if (!expected) continue;
+      if (question.type !== expected.type || question.cognitiveLevel !== expected.level || question.scope !== expected.scope) {
+        issues.push({
+          type: 'rule', section: 'mc', severity: 'error',
+          message: `${question.id}: Does not match the fixed B2 skill slot`,
+          suggestion: `Expected ${expected.type} / ${expected.level} / ${expected.scope}`,
+        });
+      }
+      if (!question.skillTarget?.trim()) {
+        issues.push({ type: 'rule', section: 'mc', severity: 'error', message: `${question.id}: Missing B2 skillTarget` });
+      }
+      if (reasoningIds.has(question.id) && (!question.evidence || question.evidence.length < 2 || !question.reasoningSteps || question.reasoningSteps.length < 2)) {
+        issues.push({
+          type: 'rule', section: 'mc', severity: 'error',
+          message: `${question.id}: B2 inference/synthesis requires at least 2 evidence references and 2 reasoning steps`,
+        });
+      }
+    }
+
+    const attitude = fixedMC.find(question => question.id === 'q8');
+    if (!attitude || !/(attitude|tone|stance|viewpoint|position)/i.test(`${attitude.question} ${attitude.skillTarget || ''}`)) {
+      issues.push({ type: 'rule', section: 'mc', severity: 'error', message: 'Q8 must explicitly test author attitude, tone, or stance' });
+    }
   }
 
   return { issues, fixedData };

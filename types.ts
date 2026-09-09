@@ -201,6 +201,10 @@ export interface MCQuestion {
   evidence?: string[];
   /** Optional reasoning chain used by hard difficulty validators */
   reasoningSteps?: string[];
+  /** Exact reading skill intentionally assessed by this item */
+  skillTarget?: string;
+  /** Amount of article context a learner must integrate */
+  scope?: 'single-paragraph' | 'cross-paragraph' | 'whole-text';
   /** Distractor metadata — keyed by option letter (wrong options only) */
   distractors?: Record<string, DistractorMeta>;
   /** If this question is part of an evidence pair, link to its sibling */

@@ -76,4 +76,20 @@ describe('isCompleteSummary', () => {
       blanks: ['Alpha', 'beta', 'gamma', 'delta', 'missing'],
     }, article, 3)).toBe(false);
   });
+
+  it('requires all five B2 coverage roles from at least three source areas', () => {
+    const summary = {
+      paragraph: '[BLANK] [BLANK] [BLANK] [BLANK] [BLANK]',
+      blanks: ['Alpha', 'beta', 'gamma', 'delta', 'epsilon'],
+    };
+    const targets = [
+      { answer: 'Alpha', role: 'central-concept' as const, sourceArea: 'P1' },
+      { answer: 'beta', role: 'cause-or-mechanism' as const, sourceArea: 'P2' },
+      { answer: 'gamma', role: 'key-development' as const, sourceArea: 'P3' },
+      { answer: 'delta', role: 'contrast-or-limitation' as const, sourceArea: 'P4' },
+      { answer: 'epsilon', role: 'result-or-conclusion' as const, sourceArea: 'P5' },
+    ];
+    expect(isCompleteSummary(summary, article, 3, targets)).toBe(true);
+    expect(isCompleteSummary(summary, article, 3, targets.map(target => ({ ...target, sourceArea: 'P1' })))).toBe(false);
+  });
 });

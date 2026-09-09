@@ -237,14 +237,14 @@ const PROFILES: DifficultyProfiles = {
       questionStemComplexity: 'moderate',
       paraphraseRequired: true,
       negativeQuestions: true,
-      cognitiveRatios: { retrieval: 0.20, inference: 0.50, synthesis: 0.30 },
-      maxRetrievalQuestions: 2,
+      cognitiveRatios: { retrieval: 0.10, inference: 0.50, synthesis: 0.40 },
+      maxRetrievalQuestions: 1,
       minInferenceQuestions: 5,
       minSynthesisQuestions: 3,
       guidance:
         'Questions test INFERENTIAL COMPREHENSION — most answers require reading between the lines. ' +
-        'Cognitive targets: ~20% retrieval, ~50% inference, ~30% synthesis/evaluation. ' +
-        'Max 2 questions may be answered by single-sentence retrieval. At least 3 questions require combining info across paragraphs. ' +
+        'Cognitive targets: ~10% retrieval, ~50% inference, ~40% synthesis/evaluation. ' +
+        'Only 1 question may be answered by single-sentence retrieval. At least 4 questions require combining information across paragraphs or the whole text. ' +
         'Distractors must be HIGHLY PLAUSIBLE based on common student misconceptions: ' +
         'true statement but wrong paragraph, too broad, too narrow, tempting but incorrect inference. ' +
         '"EXCEPT" and "NOT" questions are acceptable (1–2 max). ' +
