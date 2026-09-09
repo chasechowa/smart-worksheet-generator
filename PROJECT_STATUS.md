@@ -11,7 +11,7 @@
 ## 1. 一句话现状
 
 **线上已部署到 CF（`comprequiz.chao.asia`）：DeepSeek V4 生成已修复，B2 summary 现已强制恰好 5 个有效空位 + 自动重试（≤3 次），已上线。**
-本地 HEAD `349625c`；**Codex 的 summary 稳定性改动尚未提交**（见【Git 状态】）。远程停在 `dcbbb9c`，本地领先，**待 push**（当前网络已恢复可与 GitHub 连通）。CF 更新是**手动 wrangler 部署**，不依赖 GitHub push。
+本地与远程已同步（`ea9e4c8`）。CF 更新是**手动 wrangler 部署**，不依赖 GitHub push。
 
 ---
 
@@ -52,13 +52,10 @@
 
 ## 5. Git 状态 & 轨迹
 
-- 本地 HEAD：`349625c`（我最后一次 docs commit）
-- **未提交改动（Codex summary 稳定性修复）**：
-  - `services/aiService.ts` —— 新增 `isCompleteSummary()`、Summary 不合格时**只重生成 Summary（最多 3 次）**、延长代理超时到 120s、修正提示词里「只展示 2 个空」的误导示例
-  - `validators/summaryValidator.ts`（+ 其测试）、`services/__tests__/summaryRepair.test.ts` —— 校验答案非空/不重复/原文可定位
-  - `PROJECT_STATUS.md` —— 本文件
-- 远程 `main`：`dcbbb9c`（本地领先若干 commit **尚未 push**；网络现已恢复）
-- 最后成功 push：`96a8798..dcbbb9c  main -> main`
+- 本地 HEAD：`ea9e4c8` — `fix: make B2 summary strictly 5 valid blanks with auto-retry`
+- 远程 `main`：已与本地同步（`ea9e4c8`），push 成功 `dcbbb9c..ea9e4c8`
+- `ea9e4c8` 内容（Codex 的 summary 稳定性修复）：`aiService.ts` 新增 `isCompleteSummary()`、Summary 失败只重生成（≤3 次）、代理超时 120s、修提示词示例；`summaryValidator.ts`(+测试) 与 `summaryRepair.test.ts` 校验答案非空/不重复/原文可定位。
+- 历史：`349625c`(docs) → `835d5bd`(V4 + summary 精修) → `dcbbb9c`(移除 Electron)
 
 ---
 
@@ -103,7 +100,6 @@ CF Pages 自定义域名走 Cloudflare CDN。**刚部署完，边缘可能缓存
 
 ## 10. 未完成 / 待办
 
-- [ ] **提交 Codex 的 summary 改动 + 本状态同步**,并 **push 到 GitHub**（网络已恢复）
 - [ ] 可选：MC 选项长度差异、syntax 原文连续性的警告（不属于 summary，未处理）
 - [ ] 可选：给 `worker/` 加一个 `deploy:worker` 脚本 / 文档化 CF Pages 流程
 
@@ -115,6 +111,7 @@ CF Pages 自定义域名走 Cloudflare CDN。**刚部署完，边缘可能缓存
 | --- | --- | --- |
 | 2026-09-09 | Codex：B2 Summary 稳定性修复（严格 5 空 5 答案、原文可定位、失败仅重生成 Summary ≤3 次、修提示词示例）；部署 CF Pages | ✅ 146/146；部署 `038871c0`，线上 `index-BMLCgdKj.js` |
 | 2026-09-09 | 我已核验线上 `index-BMLCgdKj.js`、部署 `038871c0`、测试 146/146 | ✅ 与 Codex 报告一致 |
+| 2026-09-09 | 提交 Codex 改动 + 同步本文件 → `ea9e4c8`，并 `git push origin main` | ✅ `dcbbb9c..ea9e4c8`，远程已同步 |
 | 2026-09-06 | commit `835d5bd`（V4 修复 + summary 精修） | 本地 OK |
 | 2026-09-06 | `git push origin main`(835d5bd) | ❌ 当时网络连不上 github.com:443 |
 | 2026-09-06 | `wrangler pages deploy dist` | ✅ 部署 `b552e062`，线上 `index-Bwx-HLLi.js` |
