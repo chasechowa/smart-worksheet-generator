@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { repairSummary } from '../aiService';
+import { isCompleteSummary, repairSummary } from '../aiService';
 
 describe('repairSummary', () => {
   it('injects answers verbatim into a paragraph that has no [BLANK] tokens', () => {
@@ -46,5 +46,34 @@ describe('repairSummary', () => {
     });
     expect(result.paragraph).toBe('Study shows that [BLANK] helps and [BLANK] hurts.');
     expect(result.blanks).toEqual(['rest', 'focus']);
+  });
+});
+
+describe('isCompleteSummary', () => {
+  const article = 'Alpha beta gamma delta epsilon are important ideas in this article.';
+
+  it('accepts exactly five distinct verbatim answers', () => {
+    expect(isCompleteSummary({
+      paragraph: '[BLANK] [BLANK] [BLANK] [BLANK] [BLANK]',
+      blanks: ['Alpha', 'beta', 'gamma', 'delta', 'epsilon'],
+    }, article, 3)).toBe(true);
+  });
+
+  it('rejects fewer than five blanks even when paragraph and answers match', () => {
+    expect(isCompleteSummary({
+      paragraph: '[BLANK]',
+      blanks: ['Alpha'],
+    }, article, 3)).toBe(false);
+  });
+
+  it('rejects duplicate or non-verbatim answers', () => {
+    expect(isCompleteSummary({
+      paragraph: '[BLANK] [BLANK] [BLANK] [BLANK] [BLANK]',
+      blanks: ['Alpha', 'beta', 'gamma', 'delta', 'delta'],
+    }, article, 3)).toBe(false);
+    expect(isCompleteSummary({
+      paragraph: '[BLANK] [BLANK] [BLANK] [BLANK] [BLANK]',
+      blanks: ['Alpha', 'beta', 'gamma', 'delta', 'missing'],
+    }, article, 3)).toBe(false);
   });
 });

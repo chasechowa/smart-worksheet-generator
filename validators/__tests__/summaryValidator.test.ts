@@ -36,7 +36,7 @@ describe('validateSummary', () => {
     );
     const issues = validateSummary(data, articleText);
     expect(data.summary.paragraph).toBe('The [BLANK] fox [BLANK] over the dog');
-    expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
+    expect(issues.some(i => i.message.includes('Expected exactly 5 summary blanks'))).toBe(true);
   });
 
   it('auto-truncates blank exceeding 3 words', () => {
@@ -49,10 +49,19 @@ describe('validateSummary', () => {
 
   it('passes valid summary', () => {
     const data = createBaseData(
+      { paragraph: 'The [BLANK] fox [BLANK] over the [BLANK]. [BLANK] change is a [BLANK] issue.', blanks: ['quick brown', 'jumps', 'lazy dog', 'Climate', 'serious'] },
+      ['quick brown', 'jumps', 'lazy dog', 'Climate', 'serious']
+    );
+    const issues = validateSummary(data, articleText);
+    expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
+  });
+
+  it('rejects a structurally consistent summary with fewer than five blanks', () => {
+    const data = createBaseData(
       { paragraph: 'The [BLANK] fox [BLANK] over the dog', blanks: ['quick brown', 'jumps'] },
       ['quick brown', 'jumps']
     );
     const issues = validateSummary(data, articleText);
-    expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
+    expect(issues.some(i => i.message.includes('Expected exactly 5 summary blanks'))).toBe(true);
   });
 });

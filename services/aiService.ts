@@ -894,10 +894,10 @@ CRITICAL RULES for summary:
 - The paragraph must read naturally with the blanks; blanks[i] must be the exact text that was replaced.
 
 Example of the required style:
-  "paragraph": "Studies show that [BLANK] improves memory, while multitasking can reduce [BLANK].",
-  "blanks": ["regular sleep", "concentration"]
+  "paragraph": "[BLANK] improves memory, while [BLANK] reduces focus. Researchers also connect [BLANK] with learning, [BLANK] with recovery, and [BLANK] with performance.",
+  "blanks": ["answer1", "answer2", "answer3", "answer4", "answer5"]
 
-BEFORE RETURNING: count the [BLANK] tokens inside summary.paragraph. There MUST be exactly as many as there are entries in summary.blanks (one [BLANK] per answer, no more, no fewer). If the counts differ, fix the paragraph or the blanks until they match exactly.
+BEFORE RETURNING: count the [BLANK] tokens inside summary.paragraph. There MUST be EXACTLY 5 tokens and EXACTLY 5 entries in summary.blanks (one [BLANK] per answer, no more, no fewer). If either count is not 5, fix it before returning.
 
 Difficulty guidance:
 - Summary blank max words: ${profile.summary.maxBlankWords}
@@ -941,6 +941,57 @@ export function repairSummary(input: { paragraph: string; blanks: string[] }): {
 
   // Drop any answers we could not place so keys/blanks match the paragraph.
   return { paragraph, blanks: blankCount < blanks.length ? blanks.slice(0, blankCount) : blanks };
+}
+
+export function isCompleteSummary(
+  input: { paragraph: string; blanks: string[] },
+  article: string,
+  maxBlankWords: number,
+): boolean {
+  const repaired = repairSummary(input);
+  const blankCount = (repaired.paragraph.match(/\[BLANK\]/g) || []).length;
+  if (blankCount !== 5 || repaired.blanks.length !== 5) return false;
+
+  const normalizedArticle = article.toLocaleLowerCase().replace(/\s+/g, ' ');
+  const normalizedAnswers = repaired.blanks.map(answer => answer.toLocaleLowerCase().replace(/\s+/g, ' ').trim());
+  if (new Set(normalizedAnswers).size !== 5) return false;
+
+  return normalizedAnswers.every(answer => {
+    const wordCount = answer.split(/\s+/).filter(Boolean).length;
+    return Boolean(answer) && wordCount <= maxBlankWords && normalizedArticle.includes(answer);
+  });
+}
+
+async function generateCompleteSummarySection(
+  article: string,
+  difficulty: Difficulty,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+): Promise<SummarySectionResponse> {
+  const profile = getDifficultyProfile(difficulty);
+  const basePrompt = buildSummarySectionPrompt(article, difficulty);
+  let lastResult: SummarySectionResponse | null = null;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const correction = attempt === 1
+      ? ''
+      : `\nRETRY CORRECTION: Your previous summary failed validation. Return exactly five distinct [BLANK] tokens and five non-empty verbatim answers. Count both arrays before responding.`;
+    lastResult = await generateJSONSection<SummarySectionResponse>(
+      attempt === 1 ? 'Generating summary' : `Regenerating incomplete summary (${attempt}/3)`,
+      basePrompt + correction,
+      aiConfig,
+      onProgress,
+    );
+    const repaired = repairSummary({
+      paragraph: lastResult.summary?.paragraph || '',
+      blanks: Array.isArray(lastResult.summary?.blanks) ? lastResult.summary.blanks : [],
+    });
+    if (isCompleteSummary(repaired, article, profile.summary.maxBlankWords)) {
+      return { ...lastResult, summary: repaired };
+    }
+  }
+
+  throw new Error('Summary generation did not produce exactly five valid blanks after 3 attempts. Please retry once more or switch to DeepSeek V4 Pro.');
 }
 
 function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number): string {
@@ -1200,7 +1251,7 @@ async function generateSectionedWorksheet(
   };
 
   const summaryPromise = options.summary
-    ? generateJSONSection<SummarySectionResponse>('Generating summary', buildSummarySectionPrompt(article, difficulty), aiConfig, mark)
+    ? generateCompleteSummarySection(article, difficulty, aiConfig, mark)
     : Promise.resolve({} as SummarySectionResponse);
 
   const mcPromise = options.mc

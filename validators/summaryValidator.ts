@@ -22,6 +22,8 @@ export function validateSummary(data: WorksheetData, articleText: string): Valid
 
   if (blankCount === 0) {
     issues.push({ type: 'structure', section: 'summary', severity: 'error', message: 'Summary paragraph contains no [BLANK] tokens' });
+  } else if (blankCount !== 5) {
+    issues.push({ type: 'rule', section: 'summary', severity: 'error', message: `Expected exactly 5 summary blanks, got ${blankCount}` });
   }
 
   // Auto-fix blanks array to match [BLANK] count
