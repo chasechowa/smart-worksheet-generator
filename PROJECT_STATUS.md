@@ -1,115 +1,64 @@
 # PROJECT STATUS — Smart Worksheet Generator
 
-> **本文件的作用**：记录本项目的「当前状态 + 部署/上线轨迹 + 待办」。
-> 任何 agent（Claude / Codex / 其他）进入本文件夹后，先读这份文件即可接手，无需重新考古。
-> **约定**：每次 `git` 操作或 CF 部署后，请在末尾【操作日志】追加一行 —— 让轨迹留在本地。
-
 最后更新：**2026-09-10**
 
----
+## 1. 当前状态
 
-## 1. 一句话现状
+`comprequiz.chao.asia` 已通过 CF API 回滚至工作台误发布前的纯出题版本 `5192e2c3`。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
-**线上已部署到 CF（`comprequiz.chao.asia`）：B2 现采用共享文章证据地图，Summary 强制五类信息覆盖，MCQ 固定覆盖主旨、隐含/跨段推断、证据链、作者态度与篇章功能。**
-个人工作台初版已部署，入口 `https://comprequiz.chao.asia/workbench.html`；出题首页继续保留。CF 更新是**手动 wrangler 部署**，不依赖 GitHub push。
+**用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
----
+## 2. 项目与运行环境
 
-## 2. 项目身份 & 运行环境
+- 仓库：`chasechowa/smart-worksheet-generator`，分支 `main`。
+- React 19 + TypeScript + Vite + Tailwind，纯 Web。
+- 出题存储：localStorage `worksheet_projects`；AI 配置 `vocabforge_ai_keys`。
+- Worker：`worker/api-proxy.js`、`worker/wrangler.toml`，`smart-worksheet-proxy`。
+- 工作台独立目录：`D:/CLAUDEPROJECTS/personal-workbench`，不在本仓库内；拥有自己的 package.json、锁文件、src、构建、说明与状态文档。
+- 工作台本地地址：`http://127.0.0.1:3100/`；没有绑定域名和 CF 项目，也不推送到本出题仓库。
 
-- 名称：`smart-worksheet-generator`（AI 阅读理解试卷生成器，ESL/EFL 教学用）
-- GitHub 仓库：`chasechowa/smart-worksheet-generator`（remote = `origin`，HTTPS）
-- 分支：当前 `main`。工作台最新功能提交 `1463e4e`（含 `0bfccaa`）；发布记录在后续文档提交中维护。
-- 技术栈：React 19 + TS + Vite + Tailwind，纯 web（**Electron 已彻底移除**）
-- API 代理：Cloudflare Worker（`worker/api-proxy.js` + `worker/wrangler.toml`，Worker 名 `smart-worksheet-proxy`）
-- 存储：浏览器 `localStorage`（key `worksheet_projects`）；AI 配置在 localStorage key `vocabforge_ai_keys`
-- 个人工作台：`workbench.html` + `workbench/`；独立 localStorage key `personal_workbench_v1`，当前浏览器本地数据，无云同步。
+## 3. 部署约定
 
----
+- CF Pages `smart-worksheet-generator` → `comprequiz.chao.asia`。
+- Git Provider = No，Git push 不会部署。
+- 本项目发布命令：`npm run build`，然后 `npx wrangler pages deploy dist --project-name smart-worksheet-generator --branch main`。
+- CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
+- 同工作树有其他代理时，不并发重建 dist 或部署。
+- 本次发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
+- **现有 dist 是此前双入口旧产物，不要直接部署。下一次获准发布出题网站前必须重新 npm run build。**
 
-## 3. 部署模型（重点，别被误导）
+## 4. 当前线上版本
 
-- CF Pages 项目：**`smart-worksheet-generator`**，域名 `comprequiz.chao.asia` + `smart-worksheet-generator.pages.dev`
-- ⚠️ **Git Provider = No** —— Pages 项目**没有接 GitHub 自动部署**。你推 GitHub 不会触发构建。
-- 所以上线 = **手动部署**：
-  ```bash
-  npm run build   # 产出 dist/
-  npx wrangler pages deploy dist --project-name smart-worksheet-generator --branch main
-  ```
-- CF 账号：`saberking8@gmail.com` / Account ID `23104164c8b023e09beff37879e305f4`（wrangler 已登录）
-- 同一账号下还有一个 `vocabforge-ai` 项目（`vocabforge-ai.chao.asia`），与本项目同级、独立。
+- 生产 canonical deployment：`5192e2c3-6fb5-44d7-9715-60a02dc80da1`（source `aefadb6`）。
+- 主站 JS：`assets/index-Bz4XWNgl.js`。首页已核验 HTTP 200 且资源匹配。
+- `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
+- 裸 `/workbench` 在本次探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
+- 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
 
----
+## 5. Git 状态
 
-## 4. 当前线上状态
+- 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
+- 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
+- 修复提交与 push 结果记录在下方操作日志。
+- `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
-- 最新 CF 部署：**`e1b25309`**，Production / `main`，基于 `0bfccaa` + 手机端设置/拖放修复构建（部署时未提交）。
-- 部署地址：`https://e1b25309.smart-worksheet-generator.pages.dev`。
-- 当前构建：`assets/workbench-dwNbBPJc.js`（工作台）、`assets/worksheet-DLOi_EZb.js`（原出题页）、共享 React `assets/client-Cb5jwKhS.js`。
-- 验证线上版本：读取首页与 `/workbench` HTML 中的 `assets/worksheet-*.js`、`assets/workbench-*.js`，与 `dist` 中对应入口比较；请求使用 Cache-Control: no-cache。
-- 上一版部署：`5192e2c3`（`aefadb6`）；更早 `b552e062`（`835d5bd`）、`bac7de3d`（`dcbbb9c`）。
+## 6. 出题功能与配置
 
----
+- B2 共享文章证据地图；Summary 五类信息覆盖及恰好五空；MCQ 固定十题蓝图与证据链校验、局部重生成。
+- DeepSeek 默认 `deepseek-v4-pro`，可选 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`；旧 ID 自动修复。生成关闭 thinking，max_tokens 32k。
+- 代理顺序：用户自定义 → `https://api.comprequiz.chao.asia` → `https://smart-worksheet-proxy.saberking8.workers.dev` → 直连。
 
-## 5. Git 状态 & 轨迹
+## 7. 本次验证
 
-- 最新功能提交：`1463e4e` — `fix: keep workbench settings accessible on mobile`；此前 `0bfccaa` 为工作台主体。
-- 远程 `main`：工作台功能已推送到 `1463e4e`，push 成功 `a473eb5..1463e4e`；后续仅同步发布记录。
-- `ea9e4c8` 内容（Codex 的 summary 稳定性修复）：`aiService.ts` 新增 `isCompleteSummary()`、Summary 失败只重生成（≤3 次）、代理超时 120s、修提示词示例；`summaryValidator.ts`(+测试) 与 `summaryRepair.test.ts` 校验答案非空/不重复/原文可定位。
-- 历史：`349625c`(docs) → `835d5bd`(V4 + summary 精修) → `dcbbb9c`(移除 Electron)
+- 出题项目：150/150 测试通过；`npm run build -- --outDir .npm-cache/worksheet-restored-dist` 通过，产物 `index-Bz4XWNgl.js` 与回滚版本一致。
+- 独立工作台：11/11 测试、TypeScript 检查和独立生产构建通过；本地首页与组件编译 HTTP 200。
+- 未运行浏览器交互/截图测试。
 
----
+## 8. 后续
 
-## 6. 最近改动（commit 内容速记）
-
-- **2026-09-10 个人工作台初版**：暖白/森林绿设计、多工作空间、链接/便签卡片增删改、图标/颜色/模式、拖动及按钮排序、搜索、待办与单次/每日/每周弹窗提醒、延后、模块开关、随手记、配置导入导出、删除撤销、响应式布局。Vite 双入口保留出题页。计划见 `WORKBENCH_PLAN.md`。
-- `aefadb6`（已部署 `5192e2c3`）— **B2 深度阅读改造**：先生成全文证据地图；Summary 五类信息覆盖；MCQ 固定十题能力蓝图；B2 推断/综合题强制 evidence、reasoningSteps、skillTarget、scope；不合格时仅重生成对应五题批次。
-- **`038871c0`（线上，source `349625c`）— B2 Summary 稳定性**：强制恰好 5 空 5 答案；答案非空/不重复/原文可定位；不合格只重生成 Summary（≤3 次）；3 次仍失败则明确报错、不回退到不完整结果；修正提示词示例。146/146 测试通过。
-- `835d5bd`（已部署 `b552e062`）— **DeepSeek V4 生成修复 + summary 精修**：deepseek 关闭 thinking、max_tokens 32k、配置连接走代理；summary 提示词强制内联 `[BLANK]`、新增 `repairSummary()` 兜底。
-- `dcbbb9c`（已部署 `bac7de3d`）— **移除 Electron，纯 web/Cloudflare 版**：删 `electron/`、`release/`，裁剪依赖，`aiService`/`storageService` 只走 CF Worker 代理 + localStorage；PDF 导出改浏览器打印。
-- 更早：C1 校验规则对齐、试卷导出设计打磨等。
-
----
-
-## 7. 关键配置（AI / 模型）
-
-DeepSeek 现网有效模型（**其他 id 如 `deepseek-chat`/`deepseek-reasoner` 已作废**，加载时自动校正为 `deepseek-v4-pro`）：
-- `deepseek-v4-pro`（默认）
-- `deepseek-v4-flash`
-- `deepseek-v4-flash-vision-exp`
-
-接口：
-- OpenAI 兼容 base_url：`https://api.deepseek.com`（走 `/chat/completions`）
-- Anthropic 兼容 base_url：`https://api.deepseek.com/anthropic`（本项目用不到）
-- API 代理：`getUserProxy`(localStorage `vocabforge_custom_proxy`) → `https://api.comprequiz.chao.asia` → `https://smart-worksheet-proxy.saberking8.workers.dev` → 直连兜底
-
----
-
-## 8. 验证 / 测试
-
-- 测试：`npm test`（vitest）。最近一次 **161/161 通过**（13 个文件），新增备份校验与提醒测试；`npx tsc --noEmit` 通过。
-- 构建：`npm run build`（先 `build:css` 再 vite 打包到 `dist/`）。Producer build 通过。
-- 本次双入口生产构建通过；本地 `/workbench.html` 和组件编译 HTTP 200。未做浏览器交互/截图测试。
-- 校验逻辑：`validators/`（summary/mc/syntax/writing/keys 分模块），`services/validatorService.ts` 调用 `validateAll()`。
-
----
-
-## 9. 缓存注意（线上验证常见坑）
-
-CF Pages 自定义域名走 Cloudflare CDN。**刚部署完，边缘可能缓存旧 `index.html`**，导致线上 JS hash 与最新部署不一致：
-- 用 `curl -s -H 'Cache-Control: no-cache' https://comprequiz.chao.asia/` 可绕过。
-- 浏览器验证请 **Ctrl+F5 强刷**。
-
----
-
-## 10. 未完成 / 待办
-
-- [ ] 工作台后续：图片上传图标、自由模块尺寸/排序、云端同步、网页关闭后的后台通知；当前只实现本地保存与网页运行时提醒。
-- [ ] 用户补充更多个人工具网址，目前预置阅读出题、词汇工坊以及示例备课便签。
-- [ ] 可选：MC 选项长度差异、syntax 原文连续性的警告（不属于 summary，未处理）
-- [ ] 可选：给 `worker/` 加一个 `deploy:worker` 脚本 / 文档化 CF Pages 流程
-
----
+- 工作台后续仅在独立目录开发，遵守其中 AGENTS.md 与 README.md；等用户指定地址后才部署。
+- 工作台数据按浏览器来源隔离，原网址数据不会自动迁移，需备份导入导出。
+- 出题可选优化：MC 选项长度、syntax 原文连续性警告，以及 Worker 部署脚本。
 
 ## 11. 操作日志（本地痕迹，每次追加一行）
 
@@ -135,3 +84,8 @@ CF Pages 自定义域名走 Cloudflare CDN。**刚部署完，边缘可能缓存
 | 2026-09-10 | 补充手机端设置入口及拖放保护，再次运行 161 项测试和构建，执行 CF Pages 部署 | 验证通过，等待最终部署地址 |
 | 2026-09-10 | 最终 CF 部署 e1b25309 完成 | 工作台 workbench-dwNbBPJc.js；原出题资源 worksheet-DLOi_EZb.js |
 | 2026-09-10 | git add 指定修复文件并 commit 1463e4e；git push origin main | 成功 a473eb5..1463e4e；全部功能代码已同步 |
+| 2026-09-10 | git add PROJECT_STATUS.md；文档 commit 1ff2164；push origin main | 成功 1463e4e..1ff2164；功能和发布文档已同步，本行保留为本地 push 审计记录 |
+| 2026-09-10 | git status/log 检查：HEAD 1ff2164；用户要求拆分工作台并撤下错误上线 | 开始迁移到独立本地目录；不发布工作台，不分配域名 |
+| 2026-09-10 | CF API 回滚到 5192e2c3 并核验；源码逐文件验证复制完整后移出出题项目 | comprequiz 恢复纯出题；独立工作台位于 D:/CLAUDEPROJECTS/personal-workbench；历史部署保留 |
+| 2026-09-10 | 移除工作台源码并恢复出题单入口；验证两个独立项目 | 出题 150/150，工作台 11/11 与各自构建通过；精确缓存清除因 OAuth 权限不足失败 |
+| 2026-09-10 | git diff/status 核对 | 仅本次拆分的 9 个文件变更，无其他源码改动 |
