@@ -19,7 +19,7 @@
 
 - 名称：`smart-worksheet-generator`（AI 阅读理解试卷生成器，ESL/EFL 教学用）
 - GitHub 仓库：`chasechowa/smart-worksheet-generator`（remote = `origin`，HTTPS）
-- 分支：当前 `main`。本次开始时 HEAD `6319f10`，正在提交个人工作台初版。
+- 分支：当前 `main`。本次开始时 HEAD `6319f10`，工作台功能提交 `0bfccaa`，最终发布修复正在收尾。
 - 技术栈：React 19 + TS + Vite + Tailwind，纯 web（**Electron 已彻底移除**）
 - API 代理：Cloudflare Worker（`worker/api-proxy.js` + `worker/wrangler.toml`，Worker 名 `smart-worksheet-proxy`）
 - 存储：浏览器 `localStorage`（key `worksheet_projects`）；AI 配置在 localStorage key `vocabforge_ai_keys`
@@ -43,9 +43,9 @@
 
 ## 4. 当前线上状态
 
-- 最新 CF 部署：**`484f6bf7`**，Production / `main`，基于 `6319f10` + 本次工作台改动构建（部署时未提交）。
-- 部署地址：`https://484f6bf7.smart-worksheet-generator.pages.dev`。
-- 当前构建：`assets/workbench-C3_ZMwuU.js`（工作台）、`assets/worksheet-DLOi_EZb.js`（原出题页）、共享 React `assets/client-Cb5jwKhS.js`。
+- 最新 CF 部署：**`e1b25309`**，Production / `main`，基于 `0bfccaa` + 手机端设置/拖放修复构建（部署时未提交）。
+- 部署地址：`https://e1b25309.smart-worksheet-generator.pages.dev`。
+- 当前构建：`assets/workbench-dwNbBPJc.js`（工作台）、`assets/worksheet-DLOi_EZb.js`（原出题页）、共享 React `assets/client-Cb5jwKhS.js`。
 - 验证线上版本：`curl -s -H 'Cache-Control: no-cache' https://comprequiz.chao.asia/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js'`
   - 若结果 ≠ 本地 `grep -oE 'assets/index-.*\.js' dist/index.html`，说明 CDN 边缘缓存了旧 HTML，**强刷 / 用 curl 加 `Cache-Control: no-cache`** 即可（见【缓存注意】）。
 - 上一版部署：`5192e2c3`（`aefadb6`）；更早 `b552e062`（`835d5bd`）、`bac7de3d`（`dcbbb9c`）。
@@ -54,7 +54,7 @@
 
 ## 5. Git 状态 & 轨迹
 
-- 本次起始 HEAD：`6319f10` — `docs: record B2 quality deployment`；工作台改动待提交。
+- 本次起始 HEAD：`6319f10` — `docs: record B2 quality deployment`；工作台功能提交 `0bfccaa`，最终发布修复待提交。
 - 远程 `main`：本次尚未 push；此前的 `ea9e4c8` 同步记录属于历史，不能作为当前 HEAD。
 - `ea9e4c8` 内容（Codex 的 summary 稳定性修复）：`aiService.ts` 新增 `isCompleteSummary()`、Summary 失败只重生成（≤3 次）、代理超时 120s、修提示词示例；`summaryValidator.ts`(+测试) 与 `summaryRepair.test.ts` 校验答案非空/不重复/原文可定位。
 - 历史：`349625c`(docs) → `835d5bd`(V4 + summary 精修) → `dcbbb9c`(移除 Electron)
@@ -132,3 +132,6 @@ CF Pages 自定义域名走 Cloudflare CDN。**刚部署完，边缘可能缓存
 | 2026-09-10 | 使用现有 Wrangler 4.129.0 执行 CF Pages 部署；检查未发现 Claude 进程 | 9 个资源上传完成，等待发布结果 |
 | 2026-09-10 | CF Pages 部署完成 484f6bf7 | 工作台与出题页双入口已发布，待提交和 push |
 | 2026-09-10 | git add 指定工作台文件、计划、构建配置与状态文档 | 暂存成功；未包含 .claude/ 或缓存 |
+| 2026-09-10 | git add 状态文档并 commit 0bfccaa | 工作台初版已提交；补充手机端设置入口与拖放默认行为保护 |
+| 2026-09-10 | 补充手机端设置入口及拖放保护，再次运行 161 项测试和构建，执行 CF Pages 部署 | 验证通过，等待最终部署地址 |
+| 2026-09-10 | 最终 CF 部署 e1b25309 完成 | 工作台 workbench-dwNbBPJc.js；原出题资源 worksheet-DLOi_EZb.js |
