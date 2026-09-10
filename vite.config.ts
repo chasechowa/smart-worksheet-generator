@@ -8,6 +8,9 @@ export default defineConfig({
     host: '0.0.0.0',
   },
   base: './',
+  build: {
+    rollupOptions: { input: { worksheet: path.resolve(__dirname, 'index.html'), workbench: path.resolve(__dirname, 'workbench.html') } },
+  },
   plugins: [react()],
   resolve: {
     alias: {
