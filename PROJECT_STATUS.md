@@ -4,7 +4,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `1cc38f01`（source `b1b5d17`；JS `index-BiK__d3x.js`）。个人工作台已从本仓库移出，恢复单入口 Vite 配置；本次是在**重新构建**后的纯出题产物上发布（未再发布工作台）。
+`comprequiz.chao.asia` 现运行纯出题版本 `219c266f`（source `3621eef`；JS `index-ZPhA0dBV.js`）。**Summary 现在保证恰好 5 个空**（模型给不够时机械补空兜底），且 B2 生成不再硬失败。个人工作台已从本仓库移出，恢复单入口 Vite 配置；本次是在**重新构建**后的纯出题产物上发布（未再发布工作台）。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -29,8 +29,8 @@
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`1cc38f01`（source `b1b5d17`，纯出题 + B2 优雅降级修复）。
-- 主站 JS：`assets/index-BiK__d3x.js`。已用 cache-bypass 核验线上与本地 dist 一致。上一版（回滚版）为 `5192e2c3`（source `aefadb6`，JS `index-Bz4XWNgl.js`）。
+- 生产 canonical deployment：`219c266f`（source `3621eef`，纯出题 + B2 优雅降级 + **5 空保证**）。
+- 主站 JS：`assets/index-ZPhA0dBV.js`。已用 cache-bypass 核验线上与本地 dist 一致。上一版 `1cc38f01`（JS `index-BiK__d3x.js`）；再之前回滚版 `5192e2c3`（source `aefadb6`，JS `index-Bz4XWNgl.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在本次探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -44,7 +44,8 @@
 
 ## 6. 出题功能与配置
 
-- B2 共享文章证据地图；Summary 五类信息覆盖及恰好五空；MCQ 固定十题蓝图与证据链校验、局部重生成。
+- B2 共享文章证据地图；Summary **保证恰好 5 个空**（`ensureFiveBlanks`：模型给不够时，从原文中逐字可查的短语里机械补空，长短语优先、再单词，去重且 ≤maxBlankWords）；MCQ 固定十题蓝图。
+- **生成不再硬失败**：证据地图 / Summary / MC 重试用尽后返回 best-effort（问题以警告呈现），不再整份丢弃。
 - DeepSeek 默认 `deepseek-v4-pro`，可选 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`；旧 ID 自动修复。生成关闭 thinking，max_tokens 32k。
 - 代理顺序：用户自定义 → `https://api.comprequiz.chao.asia` → `https://smart-worksheet-proxy.saberking8.workers.dev` → 直连。
 
@@ -95,3 +96,6 @@
 | 2026-09-18 | 修复 B2「无法生成」：证据地图/Summary/MC 从硬失败改为**优雅降级**（保留重试，失败时返回 best-effort 而非抛错）；B2 枚举字段 type/level/scope 改为大小写/空格不敏感比较 | ✅ 150/150；commit `b1b5d17` |
 | 2026-09-18 | 重新 `npm run build`（确认单入口纯出题，无 workbench.html）并部署 CF Pages | ✅ 部署 `1cc38f01`，线上 `index-BiK__d3x.js`（cache-bypass 核验一致） |
 | 2026-09-18 | `git push origin main` | ✅ `1ff2164..b1b5d17`，远程已同步 |
+| 2026-09-18 | Summary **5 空保证**：新增 `ensureFiveBlanks` 机械补空（原文可查短语，去重、≤maxBlankWords）；commit `3621eef` | ✅ 152/152 |
+| 2026-09-18 | 重新构建并部署 CF Pages | ✅ 部署 `219c266f`，线上 `index-ZPhA0dBV.js`（cache-bypass 核验一致） |
+| 2026-09-18 | `git push origin main` | ✅ `b1b5d17..3621eef`，远程已同步 |
