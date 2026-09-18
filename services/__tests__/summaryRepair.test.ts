@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isCompleteSummary, repairSummary } from '../aiService';
+import { ensureFiveBlanks, isCompleteSummary, repairSummary } from '../aiService';
 
 describe('repairSummary', () => {
   it('injects answers verbatim into a paragraph that has no [BLANK] tokens', () => {
@@ -91,5 +91,31 @@ describe('isCompleteSummary', () => {
     ];
     expect(isCompleteSummary(summary, article, 3, targets)).toBe(true);
     expect(isCompleteSummary(summary, article, 3, targets.map(target => ({ ...target, sourceArea: 'P1' })))).toBe(false);
+  });
+});
+
+describe('ensureFiveBlanks', () => {
+  const article = 'Photographers use different techniques to tell stories about animals and nature. Saving species is important because every animal is a link in nature.';
+
+  it('tops up to exactly five distinct blanks drawn from the article', () => {
+    const result = ensureFiveBlanks(
+      'Photographers use different techniques to tell stories about [BLANK] and nature.',
+      ['animals'],
+      article,
+      3,
+    );
+    expect(result.blanks).toHaveLength(5);
+    expect(result.paragraph.match(/\[BLANK\]/g) || []).toHaveLength(5);
+    expect(new Set(result.blanks.map(blank => blank.toLowerCase())).size).toBe(5);
+    const lower = article.toLowerCase();
+    result.blanks.forEach(blank => expect(lower.includes(blank.toLowerCase())).toBe(true));
+  });
+
+  it('leaves an already-complete five-blank summary unchanged', () => {
+    const paragraph = '[BLANK] [BLANK] [BLANK] [BLANK] [BLANK]';
+    const blanks = ['Photographers', 'techniques', 'stories', 'animals', 'nature'];
+    const result = ensureFiveBlanks(paragraph, blanks, article, 3);
+    expect(result.paragraph).toBe(paragraph);
+    expect(result.blanks).toEqual(blanks);
   });
 });

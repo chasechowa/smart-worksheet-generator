@@ -958,6 +958,86 @@ export function repairSummary(input: { paragraph: string; blanks: string[] }): {
   return { paragraph, blanks: blankCount < blanks.length ? blanks.slice(0, blankCount) : blanks };
 }
 
+const SUMMARY_STOPWORDS = new Set([
+  'the','a','an','and','or','but','of','to','in','on','at','for','with','as','by','from','into',
+  'that','this','these','those','is','are','was','were','be','been','being','it','its','their',
+  'they','them','we','our','you','your','he','she','his','her','who','which','when','where','why',
+  'than','then','so','such','not','no','also','can','could','may','might','will','would','should',
+  'has','have','had','do','does','did','more','most','many','much','some','any','all','both','each',
+  'other','others','one','two','first','second','about','because','while','during','between','over',
+]);
+
+/**
+ * Deterministically guarantee exactly `target` blanks. Expects an already
+ * repaired summary (paragraph [BLANK] count === blanks.length). If the model
+ * produced fewer than `target`, it tops up by blanking additional phrases that
+ * appear verbatim in the article — longest phrases first, then single content
+ * words — keeping every blank distinct and within maxBlankWords.
+ */
+export function ensureFiveBlanks(
+  paragraph: string,
+  blanks: string[],
+  article: string,
+  maxBlankWords: number,
+  target = 5,
+): { paragraph: string; blanks: string[] } {
+  const text = (paragraph || '').replace(/\[BLANK\d*\]/gi, '[BLANK]');
+  const existing = (Array.isArray(blanks) ? blanks : []).map(b => String(b ?? '').trim()).filter(Boolean);
+
+  // Pair every [BLANK] token with its answer, in paragraph order.
+  const entries: Array<{ index: number; length: number; answer: string }> = [];
+  {
+    const re = /\[BLANK\]/g;
+    let match: RegExpExecArray | null;
+    let i = 0;
+    while ((match = re.exec(text)) !== null) {
+      const answer = existing[i++];
+      if (answer) entries.push({ index: match.index, length: '[BLANK]'.length, answer });
+    }
+  }
+
+  if (entries.length >= target) {
+    return { paragraph: text, blanks: entries.map(entry => entry.answer) };
+  }
+
+  const normalizedArticle = article.toLocaleLowerCase().replace(/\s+/g, ' ');
+  const used = new Set(entries.map(entry => entry.answer.toLocaleLowerCase().replace(/\s+/g, ' ').trim()));
+  const taken: Array<[number, number]> = entries.map(entry => [entry.index, entry.index + entry.length]);
+  const filler: typeof entries = [];
+  const needed = target - entries.length;
+
+  const words = [...text.matchAll(/[A-Za-z][A-Za-z'-]*/g)].map(m => ({ word: m[0], index: m.index as number }));
+  const collides = (start: number, end: number) =>
+    taken.some(([s, e]) => start < e && end > s) ||
+    filler.some(item => start < item.index + item.length && end > item.index);
+
+  for (let n = Math.max(1, maxBlankWords); n >= 1 && filler.length < needed; n--) {
+    for (let i = 0; i + n <= words.length && filler.length < needed; i++) {
+      const start = words[i].index;
+      const end = words[i + n - 1].index + words[i + n - 1].word.length;
+      if (collides(start, end)) continue;
+      const phrase = text.slice(start, end).replace(/\s+/g, ' ').trim();
+      const key = phrase.toLocaleLowerCase();
+      if (!key || used.has(key)) continue;
+      const parts = key.split(' ').filter(Boolean);
+      if (!parts.some(part => !SUMMARY_STOPWORDS.has(part))) continue; // must carry content
+      if (!normalizedArticle.includes(key)) continue;                 // must be verbatim in the article
+      filler.push({ index: start, length: phrase.length, answer: phrase });
+      used.add(key);
+    }
+  }
+
+  const all = [...entries, ...filler].sort((a, b) => a.index - b.index);
+  let out = '';
+  let cursor = 0;
+  for (const item of all) {
+    out += text.slice(cursor, item.index) + '[BLANK]';
+    cursor = item.index + item.length;
+  }
+  out += text.slice(cursor);
+  return { paragraph: out, blanks: all.map(item => item.answer) };
+}
+
 interface ArticleAnalysisMap {
   centralThesis: string;
   paragraphFunctions: Array<{ paragraph: string; function: string }>;
@@ -1047,7 +1127,10 @@ async function generateCompleteSummarySection(
       paragraph: lastResult.summary?.paragraph || '',
       blanks: Array.isArray(lastResult.summary?.blanks) ? lastResult.summary.blanks : [],
     });
-    return { ...lastResult, summary: repaired };
+    // Guarantee exactly five blanks: top up mechanically when the model
+    // under-delivered, so the worksheet always shows five blanks.
+    const filled = ensureFiveBlanks(repaired.paragraph, repaired.blanks, article, profile.summary.maxBlankWords);
+    return { ...lastResult, summary: filled };
   }
   throw new Error('Summary generation returned no usable result. Please retry or switch to DeepSeek V4 Pro.');
 }
