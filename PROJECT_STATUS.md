@@ -4,7 +4,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 已通过 CF API 回滚至工作台误发布前的纯出题版本 `5192e2c3`。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
+`comprequiz.chao.asia` 现运行纯出题版本 `1cc38f01`（source `b1b5d17`；JS `index-BiK__d3x.js`）。个人工作台已从本仓库移出，恢复单入口 Vite 配置；本次是在**重新构建**后的纯出题产物上发布（未再发布工作台）。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -14,7 +14,7 @@
 - React 19 + TypeScript + Vite + Tailwind，纯 Web。
 - 出题存储：localStorage `worksheet_projects`；AI 配置 `vocabforge_ai_keys`。
 - Worker：`worker/api-proxy.js`、`worker/wrangler.toml`，`smart-worksheet-proxy`。
-- 工作台独立目录：`D:/CLAUDEPROJECTS/personal-workbench`，不在本仓库内；拥有自己的 package.json、锁文件、src、构建、说明与状态文档。
+- 工作台独立目录：`D:/ChatGPT/WorkingInterface`，不在本仓库内；拥有自己的 package.json、锁文件、src、构建、说明与状态文档。
 - 工作台本地地址：`http://127.0.0.1:3100/`；没有绑定域名和 CF 项目，也不推送到本出题仓库。
 
 ## 3. 部署约定
@@ -25,12 +25,12 @@
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
 - 本次发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- **现有 dist 是此前双入口旧产物，不要直接部署。下一次获准发布出题网站前必须重新 npm run build。**
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。2026-09-18 已在重新构建后发布 `1cc38f01`。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`5192e2c3-6fb5-44d7-9715-60a02dc80da1`（source `aefadb6`）。
-- 主站 JS：`assets/index-Bz4XWNgl.js`。首页已核验 HTTP 200 且资源匹配。
+- 生产 canonical deployment：`1cc38f01`（source `b1b5d17`，纯出题 + B2 优雅降级修复）。
+- 主站 JS：`assets/index-BiK__d3x.js`。已用 cache-bypass 核验线上与本地 dist 一致。上一版（回滚版）为 `5192e2c3`（source `aefadb6`，JS `index-Bz4XWNgl.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在本次探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -39,7 +39,7 @@
 
 - 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
 - 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
-- 修复提交与 push 结果记录在下方操作日志。
+- 网络已恢复并成功 push：`1ff2164..b1b5d17`，远程 `main` 与本地同步（HEAD `b1b5d17`）。
 - `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
 ## 6. 出题功能与配置
@@ -89,3 +89,9 @@
 | 2026-09-10 | CF API 回滚到 5192e2c3 并核验；源码逐文件验证复制完整后移出出题项目 | comprequiz 恢复纯出题；独立工作台位于 D:/CLAUDEPROJECTS/personal-workbench；历史部署保留 |
 | 2026-09-10 | 移除工作台源码并恢复出题单入口；验证两个独立项目 | 出题 150/150，工作台 11/11 与各自构建通过；精确缓存清除因 OAuth 权限不足失败 |
 | 2026-09-10 | git diff/status 核对 | 仅本次拆分的 9 个文件变更，无其他源码改动 |
+| 2026-09-10 | git add 指定迁出文件并 commit 117b3e3；启动 git push origin main | 修复已本地提交，push 等待网络响应 |
+| 2026-09-10 | git push origin main 返回失败 | GitHub:443 连接失败；本地 117b3e3 已保存，线上已独立回滚，远程待网络恢复后同步 |
+| 2026-09-10 | 用户指定工作台迁至 D:/ChatGPT/WorkingInterface | 已整体迁移并校验，旧独立目录已移走；阅读项目只更新去向记录，不改代码或部署 |
+| 2026-09-18 | 修复 B2「无法生成」：证据地图/Summary/MC 从硬失败改为**优雅降级**（保留重试，失败时返回 best-effort 而非抛错）；B2 枚举字段 type/level/scope 改为大小写/空格不敏感比较 | ✅ 150/150；commit `b1b5d17` |
+| 2026-09-18 | 重新 `npm run build`（确认单入口纯出题，无 workbench.html）并部署 CF Pages | ✅ 部署 `1cc38f01`，线上 `index-BiK__d3x.js`（cache-bypass 核验一致） |
+| 2026-09-18 | `git push origin main` | ✅ `1ff2164..b1b5d17`，远程已同步 |
