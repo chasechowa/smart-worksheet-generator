@@ -16,12 +16,15 @@ type ViewMode = 'editor' | 'print-std' | 'print-compact' | 'interactive' | 'pdf'
 const DEFAULT_GENERATION_OPTIONS: GenerationOptions = {
   summary: true,
   mc: true,
+  sentenceInsertion: false,
   syntaxDeconstruction: true,
   writing_expansion: true,
   writing_keywords: true,
   writing_qa: true,
   writing_critical: true,
 };
+
+const DEFAULT_SECTION_ORDER = ['summary', 'mc', 'sentenceInsertion', 'syntaxDeconstruction', 'writing'];
 
 function normalizeSummaryParagraph(paragraph: string): string {
   return (paragraph || '').replace(/\[BLANK\d+\]/gi, '[BLANK]');
@@ -63,6 +66,17 @@ function normalizeWorksheetData(raw: Partial<WorksheetData> | null | undefined):
           answer: item.answer || '',
         }))
       : [],
+    // Stays undefined when absent so the insertion validator remains silent.
+    sentenceInsertion: Array.isArray(data.sentenceInsertion)
+      ? data.sentenceInsertion.map((item, index) => ({
+          ...item,
+          id: item.id || `si${index + 1}`,
+          sentence: item.sentence || '',
+          paragraph: item.paragraph || '',
+          answer: typeof item.answer === 'number' ? item.answer : Number(item.answer) || 0,
+          explanation: item.explanation || '',
+        }))
+      : undefined,
     writingWorkshop: {
       expansion: Array.isArray(writingWorkshop.expansion) ? writingWorkshop.expansion : [],
       keywords: Array.isArray(writingWorkshop.keywords) ? writingWorkshop.keywords : [],
@@ -72,6 +86,7 @@ function normalizeWorksheetData(raw: Partial<WorksheetData> | null | undefined):
     keys: {
       summary: Array.isArray(keys.summary) ? keys.summary : [],
       mc: keys.mc || {},
+      sentenceInsertion: keys.sentenceInsertion || {},
       syntaxDeconstruction: Array.isArray(keys.syntaxDeconstruction) ? keys.syntaxDeconstruction : [],
       expansion: Array.isArray(keys.expansion) ? keys.expansion : [],
       qa: Array.isArray(keys.qa) ? keys.qa : [],
@@ -107,6 +122,7 @@ function hasWorksheetContent(worksheet: WorksheetData): boolean {
     worksheet.articleSnippet?.trim() ||
     worksheet.summary?.paragraph?.trim() ||
     worksheet.multipleChoice?.length ||
+    worksheet.sentenceInsertion?.length ||
     worksheet.syntaxDeconstruction?.length ||
     worksheet.writingWorkshop?.expansion?.length ||
     worksheet.writingWorkshop?.keywords?.length ||
@@ -139,6 +155,7 @@ function getVisibleSectionsForGeneration(options: GenerationOptions): Set<string
   const next = new Set<string>();
   if (options.summary) next.add('summary');
   if (options.mc) next.add('mc');
+  if (options.sentenceInsertion) next.add('sentenceInsertion');
   if (options.syntaxDeconstruction) next.add('syntaxDeconstruction');
   if (hasWritingSection(options)) next.add('writing');
   if (options.writing_expansion) next.add('writing_expansion');
@@ -152,6 +169,7 @@ function getVisibleSectionsForGeneration(options: GenerationOptions): Set<string
 function hasRenderableGeneratedSections(worksheet: WorksheetData, options: GenerationOptions): boolean {
   if (options.summary && !worksheet.summary?.paragraph?.trim()) return false;
   if (options.mc && worksheet.multipleChoice?.length === 0) return false;
+  if (options.sentenceInsertion && (worksheet.sentenceInsertion?.length ?? 0) === 0) return false;
   if (options.syntaxDeconstruction && worksheet.syntaxDeconstruction?.length === 0) return false;
   if (options.writing_expansion && worksheet.writingWorkshop?.expansion?.length === 0) return false;
   if (options.writing_keywords && worksheet.writingWorkshop?.keywords?.length === 0) return false;
@@ -164,6 +182,7 @@ function shouldKeepValidationIssue(issue: ValidationIssue, options: GenerationOp
   if (issue.section === 'global') return true;
   if (issue.section === 'summary') return options.summary;
   if (issue.section === 'mc') return options.mc;
+  if (issue.section === 'insertion') return options.sentenceInsertion;
   if (issue.section === 'syntax') return options.syntaxDeconstruction;
   if (issue.section === 'writing') {
     if (/expansion|sentence expansion/i.test(issue.message)) return options.writing_expansion;
@@ -421,6 +440,21 @@ const BASE_STYLES = `
     content: "(" attr(data-index) ")";
     color: #111827;
   }
+  .insertion-marker {
+    display: inline-block;
+    font-weight: 900;
+    font-size: 9pt;
+    line-height: 1.3;
+    color: #1d4ed8;
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    border-radius: 3px;
+    padding: 0 4px;
+    margin: 0 2px;
+    white-space: nowrap;
+  }
+  .insertion-marker::before { content: "["; }
+  .insertion-marker::after { content: "]"; }
 
   .interactive-input { border: 1px solid #ccc; border-radius: 4px; padding: 2px 5px; background: #f9fafb; font-family: monospace; }
   .interactive-input:focus { outline: 2px solid #3b82f6; background: white; }
@@ -590,6 +624,21 @@ const PREVIEW_WORKSHEET_STYLES = `
     content: "(" attr(data-index) ")";
     color: #111827;
   }
+  .worksheet-preview-scope.preview-export .insertion-marker {
+    display: inline-block;
+    font-weight: 900;
+    font-size: 9pt;
+    line-height: 1.3;
+    color: #1d4ed8;
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    border-radius: 3px;
+    padding: 0 4px;
+    margin: 0 2px;
+    white-space: nowrap;
+  }
+  .worksheet-preview-scope.preview-export .insertion-marker::before { content: "["; }
+  .worksheet-preview-scope.preview-export .insertion-marker::after { content: "]"; }
   .worksheet-preview-scope.preview-export .section-title {
     background: linear-gradient(90deg, #eef6ff 0%, #f8fbff 58%, #ffffff 100%);
     border: 1px solid #dbeafe;
@@ -729,13 +778,10 @@ export default function App() {
   }, []);
   const [viewMode, setViewMode] = useState<ViewMode>('editor');
 
-  const [sectionOrder, setSectionOrder] = useState<string[]>(['summary', 'mc', 'syntaxDeconstruction', 'writing']);
+  const [sectionOrder, setSectionOrder] = useState<string[]>(DEFAULT_SECTION_ORDER);
 
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set([
-      'summary',
-      'mc',
-      'syntaxDeconstruction',
-      'writing',
+      ...DEFAULT_SECTION_ORDER,
       'writing_expansion',
       'writing_keywords',
       'writing_qa',
@@ -779,7 +825,8 @@ export default function App() {
       setVisibleSections(new Set(snapshot.visibleSections));
     }
     if (snapshot?.sectionOrder?.length) {
-      setSectionOrder(snapshot.sectionOrder);
+      // Merge so projects saved before a section existed still get its row.
+      setSectionOrder(Array.from(new Set([...snapshot.sectionOrder, ...DEFAULT_SECTION_ORDER])));
     }
     if (snapshot?.generationOptions) {
       setGenerationOptions({ ...DEFAULT_GENERATION_OPTIONS, ...snapshot.generationOptions });
@@ -1090,6 +1137,7 @@ export default function App() {
     switch(id) {
         case 'summary': return 'Summary Completion';
         case 'mc': return 'Multiple Choice';
+        case 'sentenceInsertion': return 'Sentence Insertion';
         case 'syntaxDeconstruction': return 'Syntax Deconstruction';
         case 'writing': return 'Writing Workshop';
         case 'keys': return 'Answer Key';
@@ -1122,7 +1170,7 @@ export default function App() {
         <div className="flex gap-1">
           <button
             type="button"
-            onClick={() => setGenerationOptions(DEFAULT_GENERATION_OPTIONS)}
+            onClick={() => setGenerationOptions({ ...DEFAULT_GENERATION_OPTIONS, sentenceInsertion: true })}
             className="text-[10px] font-bold px-2 py-1 rounded bg-white border border-gray-200 text-gray-500 hover:text-indigo-600"
           >
             All
@@ -1139,6 +1187,7 @@ export default function App() {
       <div className={`grid gap-2 ${isCompact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
         {renderGenerateCheckbox('summary', 'Summary Completion', '5 blanks + answer key')}
         {renderGenerateCheckbox('mc', 'Logical Analysis', '10 MC questions, generated in parallel')}
+        {renderGenerateCheckbox('sentenceInsertion', 'Sentence Insertion', '2 TOEFL-style items — extra sentence + 4 inline positions')}
         {renderGenerateCheckbox('syntaxDeconstruction', 'Syntax Deconstruction', '2 grammar breakdowns')}
       </div>
       <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">

@@ -61,4 +61,32 @@ describe('validatorService', () => {
     expect(result.autoFixed).toBe(true);
     expect(result.data.multipleChoice[0].options[0]).toBe('One');
   });
+
+  it('surfaces sentence-insertion issues end to end', () => {
+    const data: WorksheetData = {
+      ...createEmptyWorksheet(),
+      title: 'Test',
+      articleSnippet: 'snippet',
+      summary: { paragraph: 'The [BLANK] fox', blanks: ['quick'] },
+      sentenceInsertion: [
+        {
+          id: 'si1',
+          sentence: 'A brand new sentence.',
+          paragraph: 'The quick brown fox jumps over the lazy dog.[1] Extra.[2] More.[3] End.[4]',
+          answer: 2,
+        },
+      ],
+      keys: {
+        summary: ['quick'],
+        mc: {},
+        sentenceInsertion: { si1: 2 },
+        syntaxDeconstruction: [],
+        expansion: [],
+        qa: [],
+        critical: '',
+      },
+    };
+    const result = validateWorksheet(data, articleText, 'B1');
+    expect(result.issues.some(i => i.section === 'insertion')).toBe(true);
+  });
 });

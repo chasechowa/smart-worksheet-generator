@@ -1,6 +1,7 @@
-import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions, MCQuestion, SyntaxDeconstructionItem, ExpansionItem } from "../types";
+import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions, MCQuestion, SyntaxDeconstructionItem, ExpansionItem, SentenceInsertionQuestion } from "../types";
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
+import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
 
 // CF Worker proxy URLs — tried in order. The Worker buffers the upstream
 // response, so the browser timeout must allow a full worksheet section to be
@@ -1038,6 +1039,38 @@ export function ensureFiveBlanks(
   return { paragraph: out, blanks: all.map(item => item.answer) };
 }
 
+/**
+ * Best-effort repair for the sentence-insertion response. Never throws: coerces
+ * what it can and drops only genuinely unusable items (no sentence, no paragraph,
+ * or zero markers). A wrong marker count or unreadable answer is left for the
+ * validator to flag rather than being silently discarded.
+ */
+export function repairSentenceInsertionItems(raw: unknown): SentenceInsertionQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, EXPECTED_INSERTION_COUNT)
+    .map((entry, index): SentenceInsertionQuestion | null => {
+      if (!entry || typeof entry !== 'object') return null;
+      const item = entry as Record<string, unknown>;
+      const sentence = typeof item.sentence === 'string' ? item.sentence.trim() : '';
+      const paragraph = normalizeInsertionMarkers(typeof item.paragraph === 'string' ? item.paragraph : '').trim();
+      if (!sentence || !paragraph.trim()) return null;
+      if (!/\[[1-4]\]/.test(paragraph)) return null; // no markers at all -> unusable
+      return {
+        id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `si${index + 1}`,
+        sentence,
+        paragraph,
+        // 0 is a sentinel: the validator reports it as an invalid position.
+        answer: normalizeInsertionAnswer(item.answer) ?? 0,
+        explanation: typeof item.explanation === 'string' ? item.explanation.trim() : '',
+        ...(typeof item.sourceParagraphRef === 'string' && item.sourceParagraphRef.trim()
+          ? { sourceParagraphRef: item.sourceParagraphRef.trim() }
+          : {}),
+      };
+    })
+    .filter((item): item is SentenceInsertionQuestion => item !== null);
+}
+
 interface ArticleAnalysisMap {
   centralThesis: string;
   paragraphFunctions: Array<{ paragraph: string; function: string }>;
@@ -1270,6 +1303,69 @@ JSON schema:
 `;
 }
 
+/** Per-level guidance for the sentence-insertion item (sentence length + cohesion signal). */
+function buildInsertionLevelGuidance(difficulty: Difficulty): string {
+  switch (difficulty) {
+    case 'A2':
+      return 'Sentence: 6-12 words, simple or compound only, A1-A2 vocabulary. It must rely on an '
+        + 'explicit sequence word ("First", "Then", "After that") or a repeated noun. Paragraph: 3-5 '
+        + 'short sentences, 40-70 words.';
+    case 'B1':
+      return 'Sentence: 10-16 words with at most one subordinate clause. It must rely on pronoun '
+        + 'reference plus a basic connective (however, therefore, for example). Paragraph: 4-6 '
+        + 'sentences, 60-100 words.';
+    case 'B2':
+      return 'Sentence: 12-20 words. It must rely on a lexical chain or a discourse marker, and must '
+        + 'develop or qualify the argument rather than merely restate it. Paragraph: 5-7 sentences, '
+        + '80-130 words.';
+    case 'C1':
+      return 'Sentence: 15-25 words using a subtle concession, qualification, nominalization, or '
+        + 'anaphora to an abstract noun. All four positions must be grammatically possible so that '
+        + 'only discourse logic identifies the answer. Paragraph: 5-8 sentences, 90-150 words.';
+  }
+}
+
+function buildSentenceInsertionPrompt(article: string, difficulty: Difficulty, analysis?: ArticleAnalysisMap | null): string {
+  const profile = getDifficultyProfile(difficulty);
+  return `
+${buildSectionPromptHeader(article, difficulty, 'Sentence insertion')}
+${formatAnalysisMap(analysis)}
+
+Create EXACTLY ${EXPECTED_INSERTION_COUNT} sentence-insertion items (ids si1, si2).
+
+Each item:
+- sentence: ONE new sentence that does NOT appear in the article and that belongs at exactly one of four positions.
+- paragraph: ONE paragraph copied VERBATIM from the article, with exactly four inline markers
+  inserted at four different positions: [1] [2] [3] [4], in that order from left to right.
+- answer: the marker number (1, 2, 3 or 4) where the sentence belongs.
+- explanation: one sentence naming the cohesion signal (reference, connective, or lexical chain) that proves the position.
+
+Hard constraints (an item is unusable if any is broken):
+- Do NOT add, delete, or reword a single word of the paragraph. Only insert the four markers.
+- Place each marker BETWEEN words or immediately after punctuation — never inside a word.
+- The markers must be the literal text [1] [2] [3] [4], each appearing exactly once, in ascending order.
+- sentence must NOT appear anywhere in the article, verbatim or near-verbatim.
+- Exactly ONE position must be correct; the other three must be clearly wrong.
+- The two items must not reuse the same paragraph.
+
+Difficulty guidance:
+- ${buildInsertionLevelGuidance(difficulty)}
+- Sentence style: ${profile.sentence.guidance}
+- Vocabulary: ${profile.vocabulary.guidance}
+
+Example of the required marker style:
+"paragraph": "The first sentence stays whole.[1] The second sentence continues [2] the same idea. A third sentence follows.[3] The final sentence closes the paragraph.[4]"
+
+JSON schema:
+{
+  "sentenceInsertion": [
+    { "id": "si1", "sentence": "One new sentence.", "paragraph": "Paragraph text with [1] four [2] markers [3] inside.[4]", "answer": 2, "explanation": "Position 2 is the only place the reference resolves." },
+    { "id": "si2", "sentence": "Another new sentence.", "paragraph": "Different paragraph with [1] four [2] markers [3] inside.[4]", "answer": 3, "explanation": "Position 3 follows the cause it depends on." }
+  ]
+}
+`;
+}
+
 function buildWritingSectionPrompt(article: string, difficulty: Difficulty, options: GenerationOptions): string {
   const profile = getDifficultyProfile(difficulty);
   const requested = [
@@ -1343,6 +1439,10 @@ interface MCSectionResponse {
 
 interface SyntaxSectionResponse {
   syntaxDeconstruction?: SyntaxDeconstructionItem[];
+}
+
+interface InsertionSectionResponse {
+  sentenceInsertion?: SentenceInsertionQuestion[];
 }
 
 interface WritingSectionResponse {
@@ -1580,6 +1680,7 @@ async function generateSectionedWorksheet(
   const selectedTasks = [
     options.summary ? 'summary' : null,
     options.mc ? 'questions' : null,
+    options.sentenceInsertion ? 'insertion' : null,
     options.syntaxDeconstruction ? 'syntax' : null,
     selectedWriting ? 'writing' : null,
   ].filter(Boolean);
@@ -1593,7 +1694,7 @@ async function generateSectionedWorksheet(
   // map can't be built, degrade gracefully and generate from the raw article
   // (the prompts accept a null analysis) instead of failing the whole run.
   let analysis: ArticleAnalysisMap | null = null;
-  if (difficulty === 'B2' && (options.summary || options.mc)) {
+  if (difficulty === 'B2' && (options.summary || options.mc || options.sentenceInsertion)) {
     try {
       analysis = await generateArticleAnalysisMap(article, aiConfig, onProgress);
     } catch {
@@ -1632,6 +1733,21 @@ async function generateSectionedWorksheet(
         })
     : Promise.resolve({} as WritingSectionResponse);
 
+  // Insertion is a brand-new optional section: swallow any failure so it can
+  // never break the existing summary/MC/syntax/writing pipeline.
+  const insertionPromise = options.sentenceInsertion
+    ? generateJSONSection<InsertionSectionResponse>('Generating sentence insertion section', buildSentenceInsertionPrompt(article, difficulty, analysis), aiConfig, mark)
+        .then(part => {
+          completedTasks++;
+          onProgress?.(`Sentence insertion complete (${completedTasks}/${selectedTasks.length})...`);
+          return part;
+        })
+        .catch(err => {
+          console.warn('Sentence insertion generation failed:', err?.message || err);
+          return { sentenceInsertion: [] } as InsertionSectionResponse;
+        })
+    : Promise.resolve({ sentenceInsertion: [] } as InsertionSectionResponse);
+
   const summaryPart = await summaryPromise.then(part => {
     if (options.summary) {
       completedTasks++;
@@ -1639,7 +1755,7 @@ async function generateSectionedWorksheet(
     }
     return part;
   });
-  const [mcParts, syntaxPart, writingPart] = await Promise.all([mcPromise, syntaxPromise, writingPromise]);
+  const [mcParts, syntaxPart, writingPart, insertionPart] = await Promise.all([mcPromise, syntaxPromise, writingPromise, insertionPromise]);
 
   onProgress?.('Assembling worksheet...');
 
@@ -1672,6 +1788,12 @@ async function generateSectionedWorksheet(
     blanks: Array.isArray(summaryPart.summary?.blanks) ? summaryPart.summary.blanks : [],
   });
 
+  // Only present when requested, so untoggled worksheets stay undefined and the
+  // insertion validator stays silent for them.
+  const sentenceInsertion = options.sentenceInsertion
+    ? repairSentenceInsertionItems(insertionPart.sentenceInsertion)
+    : undefined;
+
   return {
     title: summaryPart.title || 'Untitled Worksheet',
     articleSnippet: summaryPart.articleSnippet || article.slice(0, 900),
@@ -1682,6 +1804,7 @@ async function generateSectionedWorksheet(
     },
     summary: repairedSummary,
     multipleChoice,
+    sentenceInsertion,
     syntaxDeconstruction,
     writingWorkshop: {
       expansion,
@@ -1693,6 +1816,10 @@ async function generateSectionedWorksheet(
       summary: repairedSummary.blanks,
       mc: multipleChoice.reduce((acc: Record<string, string>, q: any) => {
         if (q.id && q.answer) acc[q.id] = q.answer;
+        return acc;
+      }, {}),
+      sentenceInsertion: (sentenceInsertion || []).reduce((acc: Record<string, number>, item) => {
+        if (item.id && Number.isInteger(item.answer) && item.answer >= 1 && item.answer <= 4) acc[item.id] = item.answer;
         return acc;
       }, {}),
       syntaxDeconstruction: syntaxDeconstruction.map((item: any) => item.answer || ''),
@@ -1712,6 +1839,7 @@ const MAX_REFINEMENT_ROUNDS = 0; // No API refinement — rely on prompt quality
 const DEFAULT_GENERATION_OPTIONS: GenerationOptions = {
   summary: true,
   mc: true,
+  sentenceInsertion: false,
   syntaxDeconstruction: true,
   writing_expansion: true,
   writing_keywords: true,

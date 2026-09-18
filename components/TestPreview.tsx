@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import type { WorksheetData, AppSettings } from '../types';
+import { splitInsertionParagraph } from '../validators/sentenceInsertionValidator';
 
 type ViewMode = 'editor' | 'print-std' | 'print-compact' | 'interactive' | 'pdf';
 
@@ -32,6 +33,7 @@ const INTERACTIVE_SCRIPT = `
 const SECTION_INSTRUCTIONS: Record<string, string> = {
   summary: 'Read the summary and fill in each blank with a word or short phrase from the article. Keep your answers grammatically correct in the sentence.',
   mc: 'Choose the best answer for each question. Use evidence from the article, not only general knowledge.',
+  sentenceInsertion: 'Read the extra sentence. Decide where it fits best in the paragraph and mark the correct position [1], [2], [3], or [4].',
   syntaxDeconstruction: 'Study the sentence structure carefully. Break down how the key parts of the sentence work together.',
   writing: 'Use ideas from the article to build stronger sentences and short responses. Focus on clear logic, accurate language, and complete meaning.',
 };
@@ -278,6 +280,64 @@ const WorksheetPaper: React.FC<{
           </section>
         );
 
+      case 'sentenceInsertion':
+        return (
+          <section key="sentenceInsertion" className="section-gap">
+            <h2 className="section-title">
+              {partLabels['sentenceInsertion']}: 🧩 Sentence Insertion
+            </h2>
+            {renderInstruction('sentenceInsertion')}
+            <div className={isCompact ? 'space-y-3' : 'space-y-6'}>
+              {(data.sentenceInsertion || []).map((item, i) => {
+                const correctPos = data.keys?.sentenceInsertion?.[item.id];
+                return (
+                  <div key={item.id} className="avoid-break mcq-container">
+                    <div className="flex gap-3 mb-2 items-start">
+                      <span className="font-black bg-black text-white px-2 py-0.5 text-xs h-fit mt-1 rounded-sm">{i + 1}</span>
+                      <div className="flex-1 min-w-0 border-l-4 border-amber-300 pl-2">
+                        <PrintableField
+                          value={item.sentence}
+                          onChange={e => {
+                            const next = [...(data.sentenceInsertion || [])];
+                            next[i].sentence = e.target.value;
+                            update('sentenceInsertion', next);
+                          }}
+                          className="font-bold"
+                          viewMode={viewMode}
+                        />
+                      </div>
+                    </div>
+                    <div className={`ml-10 text-justify ${isCompact ? 'leading-relaxed' : 'leading-[2.5rem]'}`}>
+                      {splitInsertionParagraph(item.paragraph).map((chunk, cIdx) => (
+                        chunk.marker === null ? (
+                          <span key={cIdx} className="text-[11pt]">{chunk.text}</span>
+                        ) : isInteractive ? (
+                          <span
+                            key={cIdx}
+                            className="mcq-option interactive-opt insertion-marker"
+                            data-correct={String(chunk.marker === correctPos)}
+                          >
+                            {chunk.marker}
+                          </span>
+                        ) : (
+                          <span key={cIdx} className="insertion-marker">{chunk.marker}</span>
+                        )
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-3 ml-10 mt-2">
+                      <span className="text-xs font-bold uppercase text-gray-400">Answer</span>
+                      <span className="insertion-marker">1</span>
+                      <span className="insertion-marker">2</span>
+                      <span className="insertion-marker">3</span>
+                      <span className="insertion-marker">4</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+
       case 'syntaxDeconstruction':
         return (
           <section key="syntaxDeconstruction" className="section-gap">
@@ -491,6 +551,33 @@ const WorksheetPaper: React.FC<{
                       <div key={q.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
                         <span className="font-black text-gray-500">{i + 1}:</span>
                         <span className="w-10 font-bold text-center inline-block">{data.keys.mc[q.id] || ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+            );
+        case 'sentenceInsertion':
+            return (
+                <div key="key-sentenceInsertion" className="avoid-break">
+                  <h3 className="text-blue-900 mb-4 uppercase tracking-wider border-b pb-2 section-title">{partLabels['sentenceInsertion']} Answers</h3>
+                  <div className="space-y-3">
+                    {(data.sentenceInsertion || []).map((item, i) => (
+                      <div key={item.id} className="flex items-start gap-3 bg-gray-50 p-3 rounded border avoid-break">
+                        <span className="font-black text-gray-500 h-fit mt-0.5">{i + 1}:</span>
+                        <span className="insertion-marker h-fit">{data.keys?.sentenceInsertion?.[item.id] ?? '—'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs italic text-gray-500 mb-1">"{item.sentence}"</div>
+                          <PrintableField
+                            value={item.explanation || ''}
+                            onChange={e => {
+                              const next = [...(data.sentenceInsertion || [])];
+                              next[i].explanation = e.target.value;
+                              update('sentenceInsertion', next);
+                            }}
+                            className="text-sm text-gray-700"
+                            viewMode={viewMode}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

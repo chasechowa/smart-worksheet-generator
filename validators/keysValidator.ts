@@ -63,6 +63,43 @@ export function validateKeys(data: WorksheetData): ValidationIssue[] {
     });
   }
 
+  // Sentence insertion keys — only when the section is present, so old worksheets stay clean.
+  if (Array.isArray(data.sentenceInsertion)) {
+    const insertionItems = data.sentenceInsertion;
+    const insertionKeys = keys.sentenceInsertion || {};
+    const insertionKeyCount = Object.keys(insertionKeys).length;
+    if (insertionKeyCount !== insertionItems.length) {
+      issues.push({
+        type: 'rule',
+        section: 'keys',
+        severity: 'error',
+        message: `Sentence insertion key count (${insertionKeyCount}) does not match item count (${insertionItems.length})`,
+      });
+    }
+    insertionItems.forEach((item, index) => {
+      const value = insertionKeys[item.id];
+      if (!Number.isInteger(value) || value < 1 || value > 4) {
+        issues.push({
+          type: 'rule',
+          section: 'keys',
+          severity: 'error',
+          message: `Sentence insertion key for ${item.id || `item ${index + 1}`} is "${String(value)}", expected a position 1-4`,
+        });
+        return;
+      }
+      const expected = item.answer;
+      if (Number.isInteger(expected) && expected >= 1 && expected <= 4 && expected !== value) {
+        issues.push({
+          type: 'rule',
+          section: 'keys',
+          severity: 'error',
+          message: `Sentence insertion key for ${item.id} is ${value}, but the item's answer is ${expected}`,
+          suggestion: `Key should be ${expected}`,
+        });
+      }
+    });
+  }
+
   // Expansion keys
   const expansionCount = (writingWorkshop?.expansion || []).length;
   const expansionKeyCount = (keys.expansion || []).length;

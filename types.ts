@@ -136,6 +136,7 @@ export interface AIConfig {
 export interface GenerationOptions {
   summary: boolean;
   mc: boolean;
+  sentenceInsertion: boolean;
   syntaxDeconstruction: boolean;
   writing_expansion: boolean;
   writing_keywords: boolean;
@@ -217,6 +218,24 @@ export interface SyntaxDeconstructionItem {
   answer: string;
 }
 
+/**
+ * TOEFL-style sentence insertion: one extra sentence plus a paragraph copied
+ * verbatim from the article, carrying four inline candidate positions.
+ */
+export interface SentenceInsertionQuestion {
+  id: string;
+  /** The extra sentence to place — must NOT already appear in the article. */
+  sentence: string;
+  /** Article paragraph, verbatim, with exactly four inline markers [1][2][3][4] in ascending order. */
+  paragraph: string;
+  /** Correct marker position, 1-4 (matches the visible marker label). */
+  answer: number;
+  /** Optional rationale shown in the answer key. */
+  explanation?: string;
+  /** Optional label such as "Paragraph 3". */
+  sourceParagraphRef?: string;
+}
+
 export interface ExpansionItem {
   id: string;
   fact: string;
@@ -237,6 +256,8 @@ export interface WorksheetData {
     blanks: string[];
   };
   multipleChoice: MCQuestion[];
+  /** Optional: only present when the sentence-insertion toggle was on. */
+  sentenceInsertion?: SentenceInsertionQuestion[];
   syntaxDeconstruction: SyntaxDeconstructionItem[];
   writingWorkshop: {
     expansion: ExpansionItem[];
@@ -247,6 +268,8 @@ export interface WorksheetData {
   keys: {
     summary: string[];
     mc: { [key: string]: string };
+    /** Optional: only present when the sentence-insertion section was generated. */
+    sentenceInsertion?: Record<string, number>;
     syntaxDeconstruction: string[];
     expansion: string[];
     qa: string[];
@@ -278,7 +301,7 @@ export interface ProjectSnapshot {
 
 export interface ValidationIssue {
   type: 'structure' | 'rule' | 'reference';
-  section: 'summary' | 'mc' | 'syntax' | 'writing' | 'keys' | 'global';
+  section: 'summary' | 'mc' | 'insertion' | 'syntax' | 'writing' | 'keys' | 'global';
   severity: 'error' | 'warning';
   message: string;
   suggestion?: string;

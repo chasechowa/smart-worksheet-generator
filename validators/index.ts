@@ -2,6 +2,7 @@ import type { WorksheetData, ValidationIssue, Difficulty } from '../types';
 import { validateSummary } from './summaryValidator';
 import { validateMC } from './mcValidator';
 import { validateSyntax } from './syntaxValidator';
+import { validateSentenceInsertion } from './sentenceInsertionValidator';
 import { validateWriting } from './writingValidator';
 import { validateKeys } from './keysValidator';
 import { validateC1Boundaries } from './c1Validator';
@@ -26,6 +27,7 @@ export function validateAll(data: WorksheetData, articleText: string, difficulty
     issues.push(...validateC1Boundaries(fixedData.multipleChoice || [], articleText));
   }
   issues.push(...validateSyntax(fixedData, articleText));
+  issues.push(...validateSentenceInsertion(fixedData, articleText, difficulty));
   issues.push(...validateWriting(fixedData, articleText));
   issues.push(...validateKeys(fixedData));
 
@@ -35,6 +37,7 @@ export function validateAll(data: WorksheetData, articleText: string, difficulty
 export * from './summaryValidator';
 export * from './mcValidator';
 export * from './syntaxValidator';
+export * from './sentenceInsertionValidator';
 export * from './writingValidator';
 export * from './keysValidator';
 export * from './verbatimMatcher';

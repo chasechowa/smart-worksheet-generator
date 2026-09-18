@@ -126,3 +126,40 @@ describe('validateKeys', () => {
     expect(issues.filter(i => i.severity === 'error')).toHaveLength(0);
   });
 });
+
+describe('validateKeys — sentence insertion', () => {
+  const items = [
+    { id: 'si1', sentence: 'S1', paragraph: 'Aaa.[1] Bbb.[2] Ccc.[3] Ddd.[4]', answer: 2 },
+    { id: 'si2', sentence: 'S2', paragraph: 'Eee.[1] Fff.[2] Ggg.[3] Hhh.[4]', answer: 3 },
+  ];
+
+  it('emits nothing when the section is absent', () => {
+    const issues = validateKeys(createData());
+    expect(issues.some(i => i.message.includes('Sentence insertion'))).toBe(false);
+  });
+
+  it('accepts matching keys', () => {
+    const issues = validateKeys(createData({
+      sentenceInsertion: items as any,
+      keys: { summary: [], mc: {}, sentenceInsertion: { si1: 2, si2: 3 }, syntaxDeconstruction: [], expansion: [], qa: [], critical: '' },
+    }));
+    expect(issues.filter(i => i.message.includes('Sentence insertion'))).toHaveLength(0);
+  });
+
+  it('detects a count mismatch', () => {
+    const issues = validateKeys(createData({
+      sentenceInsertion: items as any,
+      keys: { summary: [], mc: {}, sentenceInsertion: { si1: 2 }, syntaxDeconstruction: [], expansion: [], qa: [], critical: '' },
+    }));
+    expect(issues.some(i => i.message.includes('Sentence insertion key count (1) does not match item count (2)'))).toBe(true);
+  });
+
+  it('detects an out-of-range key and a mismatch with the item answer', () => {
+    const issues = validateKeys(createData({
+      sentenceInsertion: items as any,
+      keys: { summary: [], mc: {}, sentenceInsertion: { si1: 9, si2: 1 }, syntaxDeconstruction: [], expansion: [], qa: [], critical: '' },
+    }));
+    expect(issues.some(i => i.message.includes('expected a position 1-4'))).toBe(true);
+    expect(issues.some(i => i.message.includes("key for si2 is 1") && i.message.includes('answer is 3'))).toBe(true);
+  });
+});
