@@ -1038,7 +1038,18 @@ async function generateCompleteSummarySection(
     }
   }
 
-  throw new Error('Summary generation did not produce exactly five valid blanks after 3 attempts. Please retry once more or switch to DeepSeek V4 Pro.');
+  // Best-effort: return the last repaired summary instead of failing the whole
+  // generation. repairSummary already reconciles the [BLANK] markers with the
+  // answer list, so counts stay consistent; remaining quality issues surface as
+  // warnings in the validation panel rather than blocking the worksheet.
+  if (lastResult) {
+    const repaired = repairSummary({
+      paragraph: lastResult.summary?.paragraph || '',
+      blanks: Array.isArray(lastResult.summary?.blanks) ? lastResult.summary.blanks : [],
+    });
+    return { ...lastResult, summary: repaired };
+  }
+  throw new Error('Summary generation returned no usable result. Please retry or switch to DeepSeek V4 Pro.');
 }
 
 function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number, analysis?: ArticleAnalysisMap | null): string {
@@ -1366,6 +1377,10 @@ export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
   const invalid = new Set<string>();
   const byId = new Map(questions.map(question => [question.id, question]));
   const reasoningSlots = new Set([1, 3, 4, 5, 6, 7, 8, 10]);
+  // Models vary casing/spacing on enum fields ("Inference " vs "inference"),
+  // so compare tokens leniently instead of by exact string.
+  const sameToken = (a?: string, b?: string) =>
+    String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 
   for (let slot = 1; slot <= 10; slot++) {
     const id = `q${slot}`;
@@ -1375,7 +1390,7 @@ export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
       invalid.add(id);
       continue;
     }
-    if (question.type !== rule.type || question.cognitiveLevel !== rule.level || question.scope !== rule.scope) invalid.add(id);
+    if (!sameToken(question.type, rule.type) || !sameToken(question.cognitiveLevel, rule.level) || !sameToken(question.scope, rule.scope)) invalid.add(id);
     if (!question.question?.trim() || question.options?.length !== 4 || !/^[A-D]$/.test(question.answer || '') || !question.explanation?.trim()) invalid.add(id);
     if (slot !== 2 && /^according to\b/i.test(question.question.trim())) invalid.add(id);
     if (reasoningSlots.has(slot)) {
@@ -1447,7 +1462,10 @@ async function generateCompleteMCSection(
     await Promise.all(jobs);
   }
 
-  throw new Error('B2 question generation did not meet the inference and evidence requirements after targeted retries. Please retry once more.');
+  // Best-effort: return the last generated batch instead of failing the whole
+  // generation. Downstream validation surfaces any remaining quality issues as
+  // warnings, so the user still gets a usable worksheet.
+  return { multipleChoice: [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')] };
 }
 
 async function runWithConcurrency<T, R>(
@@ -1488,10 +1506,17 @@ async function generateSectionedWorksheet(
   };
 
   // B2 quality depends on a shared interpretation of the whole article. Build
-  // one compact map first, then let Summary and both MC batches use it.
-  const analysis = difficulty === 'B2' && (options.summary || options.mc)
-    ? await generateArticleAnalysisMap(article, aiConfig, onProgress)
-    : null;
+  // one compact map first, then let Summary and both MC batches use it. If the
+  // map can't be built, degrade gracefully and generate from the raw article
+  // (the prompts accept a null analysis) instead of failing the whole run.
+  let analysis: ArticleAnalysisMap | null = null;
+  if (difficulty === 'B2' && (options.summary || options.mc)) {
+    try {
+      analysis = await generateArticleAnalysisMap(article, aiConfig, onProgress);
+    } catch {
+      analysis = null;
+    }
+  }
 
   const summaryPromise = options.summary
     ? generateCompleteSummarySection(article, difficulty, aiConfig, mark, analysis)
