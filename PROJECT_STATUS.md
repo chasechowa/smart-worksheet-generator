@@ -4,7 +4,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `219c266f`（source `3621eef`；JS `index-ZPhA0dBV.js`）。**Summary 现在保证恰好 5 个空**（模型给不够时机械补空兜底），且 B2 生成不再硬失败。个人工作台已从本仓库移出，恢复单入口 Vite 配置；本次是在**重新构建**后的纯出题产物上发布（未再发布工作台）。
+`comprequiz.chao.asia` 现运行纯出题版本 `83740134`（source `77f3d4d`；JS `index-CD_CY6n7.js`）。本轮新增 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1 可选，每份 2 题）；`Summary 保证恰好 5 个空` 与 `B2 生成不再硬失败` 仍在。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -25,12 +25,12 @@
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
 - 本次发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。2026-09-18 已在重新构建后发布 `1cc38f01`。
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-09-18 重新构建后发布 `22f482c0`。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`219c266f`（source `3621eef`，纯出题 + B2 优雅降级 + **5 空保证**）。
-- 主站 JS：`assets/index-ZPhA0dBV.js`。已用 cache-bypass 核验线上与本地 dist 一致。上一版 `1cc38f01`（JS `index-BiK__d3x.js`）；再之前回滚版 `5192e2c3`（source `aefadb6`，JS `index-Bz4XWNgl.js`）。
+- 生产 canonical deployment：`83740134`（source `77f3d4d`，纯出题 + B2 优雅降级 + 5 空保证 + **Sentence Insertion 板块**）。同一构建此前也发布为 `22f482c0`。
+- 主站 JS：`assets/index-CD_CY6n7.js`。已用 cache-bypass 核验线上与本地 dist 一致。上一版 `219c266f`（source `3621eef`，JS `index-ZPhA0dBV.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在本次探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -39,7 +39,7 @@
 
 - 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
 - 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
-- 网络已恢复并成功 push：`1ff2164..b1b5d17`，远程 `main` 与本地同步（HEAD `b1b5d17`）。
+- 本地 HEAD `77f3d4d`（Sentence Insertion 板块）。`git push` 因 GitHub:443 网络抖动未成功，**远程待同步**。
 - `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
 ## 6. 出题功能与配置
@@ -51,7 +51,8 @@
 
 ## 7. 本次验证
 
-- 出题项目：150/150 测试通过；`npm run build -- --outDir .npm-cache/worksheet-restored-dist` 通过，产物 `index-Bz4XWNgl.js` 与回滚版本一致。
+- 出题项目：**178/178** 测试通过；`npx tsc --noEmit` 无错误；`npm run build` 通过（产物 `index-CD_CY6n7.js`）；`.insertion-marker` 已进入内置 CSS 与 `public/export-tailwind.css`。
+- Sentence Insertion 已加 26 条测试（validator / repair / keys / 端到端），未做真实 API 生成验证。
 - 独立工作台：11/11 测试、TypeScript 检查和独立生产构建通过；本地首页与组件编译 HTTP 200。
 - 未运行浏览器交互/截图测试。
 
@@ -99,3 +100,7 @@
 | 2026-09-18 | Summary **5 空保证**：新增 `ensureFiveBlanks` 机械补空（原文可查短语，去重、≤maxBlankWords）；commit `3621eef` | ✅ 152/152 |
 | 2026-09-18 | 重新构建并部署 CF Pages | ✅ 部署 `219c266f`，线上 `index-ZPhA0dBV.js`（cache-bypass 核验一致） |
 | 2026-09-18 | `git push origin main` | ✅ `b1b5d17..3621eef`，远程已同步 |
+| 2026-09-18 | docs: 同步本文件（5 空保证 / 部署 `219c266f`）→ `2e62ff5`；`git push` 网络失败 | 本地 OK，远程待同步 |
+| 2026-09-19 | **新增 TOEFL 式「Sentence Insertion」板块**（默认关闭、A2–C1、每份 2 题）：采用独立板块而非新 MC 题型；新增 `SentenceInsertionQuestion`、`keys.sentenceInsertion`、`GenerationOptions.sentenceInsertion`、`validators/sentenceInsertionValidator.ts`、TestPreview 渲染与 `.insertion-marker` 样式；commit `77f3d4d` | ✅ 178/178、`tsc --noEmit` 无错、构建通过 |
+| 2026-09-19 | 重新构建并部署 CF Pages | ✅ 部署 `22f482c0` / `83740134`，线上 `index-CD_CY6n7.js`（cache-bypass 核验一致） |
+| 2026-09-19 | `git push origin main`(`77f3d4d`) | ❌ GitHub:443 连接抖动，远程待同步 |
