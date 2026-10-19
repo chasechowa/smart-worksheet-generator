@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MCQuestion, MCQuestionType, CognitiveLevel } from '../../types';
-import { getInvalidB2QuestionIds } from '../aiService';
+import { getInvalidB2QuestionIds, getLengthInvalidQuestionIds, getInvalidMCQuestionIds } from '../aiService';
 
 const slots: Array<[MCQuestionType, CognitiveLevel, NonNullable<MCQuestion['scope']>]> = [
   ['Main Idea', 'synthesis', 'whole-text'],
@@ -58,5 +58,34 @@ describe('getInvalidB2QuestionIds', () => {
     const questions = makeValidQuestions();
     questions[2].question = 'According to the article, what happened?';
     expect(getInvalidB2QuestionIds(questions)).toContain('q3');
+  });
+});
+
+describe('option-length enforcement at generation time', () => {
+  const makeLengthViolation = () => {
+    const questions = makeValidQuestions();
+    // Correct option = 2 words; option B = 8 words.
+    questions[2].options = ['Correct option', 'A distractor that is clearly much too long', 'Short one', 'Short two'];
+    return questions;
+  };
+
+  it('accepts a compliant non-B2 set', () => {
+    expect(getInvalidMCQuestionIds(makeValidQuestions(), 'B1')).toEqual([]);
+  });
+
+  it('flags a length violation at a non-B2 level without B2 slot checks', () => {
+    const questions = makeLengthViolation();
+    expect(getLengthInvalidQuestionIds(questions)).toEqual(['q3']);
+    expect(getInvalidMCQuestionIds(questions, 'B1')).toEqual(['q3']);
+  });
+
+  it('unions B2 hard violations with length violations', () => {
+    const questions = makeLengthViolation();
+    questions[3].evidence = ['P1']; // q4 hard failure
+    expect(getInvalidMCQuestionIds(questions, 'B2')).toEqual(['q3', 'q4']);
+  });
+
+  it('leaves the legacy B2 checker length-agnostic', () => {
+    expect(getInvalidB2QuestionIds(makeLengthViolation())).toEqual([]);
   });
 });

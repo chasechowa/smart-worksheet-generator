@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateMC } from '../mcValidator';
+import { validateMC, countOptionWords, getOptionWordCounts, getOptionLengthViolations, isOptionLengthBalanced } from '../mcValidator';
 import type { WorksheetData, MCQuestion } from '../../types';
 
 function createMCData(questions: MCQuestion[]): WorksheetData {
@@ -237,16 +237,107 @@ describe('validateMC', () => {
     expect(issues.some(i => i.message.includes('auto-converted'))).toBe(false);
   });
 
-  it('warns when option lengths vary by more than 30%', () => {
+  it('warns when a distractor is more than 2 words away from the correct answer', () => {
     const questions = Array.from({ length: 10 }, (_, i) =>
-      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Short', [
-        'Short',
-        'A much longer option that is way more verbose',
-        'Medium length option here',
-        'Another medium option'
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A', [
+        'Short',                                  // 1 word (correct)
+        'This distractor is far too long now',    // 6 words
+        'Medium option',                          // 2 words
+        'Brief',                                  // 1 word
       ])
     );
     const { issues } = validateMC(createMCData(questions));
-    expect(issues.some(i => i.message.includes('Option lengths vary'))).toBe(true);
+    const warnings = issues.filter(i => i.message.includes('within 2 words'));
+    expect(warnings.length).toBeGreaterThan(0);
+    // Options may be rotated before this check, so assert on the counts, not the letter.
+    expect(warnings.some(i => i.message.includes('7 words'))).toBe(true);
+    expect(warnings.some(i => i.message.includes('correct option') && i.message.includes('1 word'))).toBe(true);
+  });
+
+  it('does not warn when every distractor is within 2 words of the correct answer', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A', [
+        'Alpha',        // 1 (correct)
+        'Beta chain',   // 2
+        'Gamma ray now',// 3
+        'Delta',        // 1
+      ])
+    );
+    const { issues } = validateMC(createMCData(questions));
+    expect(issues.some(i => i.message.includes('within 2 words'))).toBe(false);
+  });
+
+  it('uses word count rather than character count', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A', [
+        'Extraordinarily comprehensive reinterpretation', // 3 words, far longer in characters
+        'Cats sleep now',                                  // 3 words
+        'Dogs run fast',                                   // 3 words
+        'Birds fly high',                                  // 3 words
+      ])
+    );
+    const { issues } = validateMC(createMCData(questions));
+    expect(issues.some(i => i.message.includes('within 2 words'))).toBe(false);
+  });
+
+  it('accepts a lowercase answer and the exact tolerance boundary', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'a', [
+        'Alpha',          // 1 (correct)
+        'Beta chain now', // 3 — diff exactly 2
+        'Gamma ray',      // 2
+        'Delta',          // 1
+      ])
+    );
+    const { issues } = validateMC(createMCData(questions));
+    expect(issues.some(i => i.message.includes('within 2 words'))).toBe(false);
+  });
+
+  it('skips the length check for malformed option sets', () => {
+    const questions = Array.from({ length: 10 }, (_, i) =>
+      makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'A', [
+        'Alpha',
+        'Beta',
+        'Gamma',
+      ])
+    );
+    const { issues } = validateMC(createMCData(questions));
+    expect(issues.some(i => i.message.includes('within 2 words'))).toBe(false);
+  });
+});
+
+describe('option word-count helpers', () => {
+  it('counts whitespace-delimited words and handles bad input', () => {
+    expect(countOptionWords('')).toBe(0);
+    expect(countOptionWords('   ')).toBe(0);
+    expect(countOptionWords(' one  two\tthree ')).toBe(3);
+    expect(countOptionWords("don't stop")).toBe(2);
+    expect(countOptionWords(null)).toBe(0);
+    expect(countOptionWords(42)).toBe(0);
+  });
+
+  it('resolves the correct option case-insensitively', () => {
+    const counts = getOptionWordCounts(['one', 'two words', 'three words here', 'four'], 'b');
+    expect(counts).not.toBeNull();
+    expect(counts!.find(entry => entry.isCorrect)!.index).toBe(1);
+    expect(counts!.map(entry => entry.words)).toEqual([1, 2, 3, 1]);
+  });
+
+  it('returns null for malformed option sets', () => {
+    expect(getOptionWordCounts(['a', 'b'], 'A')).toBeNull();
+    expect(getOptionWordCounts(['a', 'b', 'c', 'd'], 'E')).toBeNull();
+    expect(getOptionWordCounts(undefined, 'A')).toBeNull();
+  });
+
+  it('balances at exactly the tolerance boundary', () => {
+    expect(isOptionLengthBalanced(['one', 'two three', 'four five six', 'seven'], 'A')).toBe(true);
+    expect(isOptionLengthBalanced(['one', 'two three four five', 'six', 'seven'], 'A')).toBe(false);
+  });
+
+  it('reports the violating option details', () => {
+    const violations = getOptionLengthViolations(['short', 'one two three four five', 'two words', 'three words now'], 'A');
+    expect(violations).toEqual([
+      { index: 1, letter: 'B', words: 5, correctLetter: 'A', correctWords: 1, difference: 4 },
+    ]);
   });
 });

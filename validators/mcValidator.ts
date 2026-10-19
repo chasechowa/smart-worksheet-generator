@@ -112,6 +112,95 @@ function stripPrefix(text: string): string {
   return String(text ?? '').replace(/^[A-Da-d][.)\]]\s*/, '').replace(/^\d+[.)\]]\s*/, '').trim();
 }
 
+// ---------------------------------------------------------------------------
+// Option length parity (correct-answer-relative, measured in words)
+// ---------------------------------------------------------------------------
+
+/** Maximum allowed word-count difference between a distractor and the correct option. */
+export const OPTION_LENGTH_TOLERANCE_WORDS = 2;
+
+export interface OptionWordCount {
+  index: number;
+  letter: string;
+  words: number;
+  isCorrect: boolean;
+}
+
+export interface OptionLengthViolation {
+  index: number;
+  letter: string;
+  words: number;
+  correctLetter: string;
+  correctWords: number;
+  difference: number;
+}
+
+export function countOptionWords(text: unknown): number {
+  if (typeof text !== 'string') return 0;
+  const trimmed = text.trim();
+  if (!trimmed) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
+/**
+ * Word counts for a well-formed 4-option question, or null when the options or
+ * answer are malformed (structural errors already cover those cases).
+ */
+export function getOptionWordCounts(
+  options: string[] | null | undefined,
+  answer: string | null | undefined,
+): OptionWordCount[] | null {
+  if (!Array.isArray(options) || options.length !== 4) return null;
+  const correctLetter = String(answer ?? '').trim().toUpperCase();
+  if (!/^[A-D]$/.test(correctLetter)) return null;
+  return options.map((option, index) => ({
+    index,
+    letter: String.fromCharCode(65 + index),
+    words: countOptionWords(option),
+    isCorrect: String.fromCharCode(65 + index) === correctLetter,
+  }));
+}
+
+/**
+ * Every distractor whose word count differs from the correct option by more
+ * than `tolerance`. Empty options are skipped — they are structural errors.
+ */
+export function getOptionLengthViolations(
+  options: string[] | null | undefined,
+  answer: string | null | undefined,
+  tolerance: number = OPTION_LENGTH_TOLERANCE_WORDS,
+): OptionLengthViolation[] {
+  const counts = getOptionWordCounts(options, answer);
+  if (!counts) return [];
+  const correct = counts.find(entry => entry.isCorrect);
+  if (!correct || correct.words === 0) return [];
+
+  const violations: OptionLengthViolation[] = [];
+  for (const entry of counts) {
+    if (entry.isCorrect || entry.words === 0) continue;
+    const difference = Math.abs(entry.words - correct.words);
+    if (difference > tolerance) {
+      violations.push({
+        index: entry.index,
+        letter: entry.letter,
+        words: entry.words,
+        correctLetter: correct.letter,
+        correctWords: correct.words,
+        difference,
+      });
+    }
+  }
+  return violations;
+}
+
+export function isOptionLengthBalanced(
+  options: string[] | null | undefined,
+  answer: string | null | undefined,
+  tolerance: number = OPTION_LENGTH_TOLERANCE_WORDS,
+): boolean {
+  return getOptionLengthViolations(options, answer, tolerance).length === 0;
+}
+
 function normalizePatternKey(pattern: string): string {
   return String(pattern || '')
     .trim()
@@ -509,13 +598,19 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     }
   });
 
-  // ---- Option length balance ----
+  // ---- Option length parity (word count, relative to the correct option) ----
   fixedMC.forEach((q, i) => {
-    const lengths = q.options.map(o => o.length);
-    const maxLen = Math.max(...lengths);
-    const minLen = Math.min(...lengths);
-    if (maxLen - minLen >= 30 && maxLen > minLen * 1.6) {
-      issues.push({ type: 'rule', section: 'mc', severity: 'warning', message: `Q${i + 1}: Option lengths vary significantly (${minLen}-${maxLen} chars)` });
+    const violations = getOptionLengthViolations(q.options, q.answer);
+    for (const violation of violations) {
+      const optionLabel = `${violation.words} word${violation.words === 1 ? '' : 's'}`;
+      const correctLabel = `${violation.correctWords} word${violation.correctWords === 1 ? '' : 's'}`;
+      issues.push({
+        type: 'rule',
+        section: 'mc',
+        severity: 'warning',
+        message: `Q${i + 1}: Option ${violation.letter} has ${optionLabel}, but the correct option ${violation.correctLetter} has ${correctLabel} — every option must be within ${OPTION_LENGTH_TOLERANCE_WORDS} words of the correct answer`,
+        suggestion: `Rewrite Option ${violation.letter} to ${Math.max(1, violation.correctWords - OPTION_LENGTH_TOLERANCE_WORDS)}-${violation.correctWords + OPTION_LENGTH_TOLERANCE_WORDS} words.`,
+      });
     }
   });
 

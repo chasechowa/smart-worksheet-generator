@@ -2,6 +2,7 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
+import { OPTION_LENGTH_TOLERANCE_WORDS, getOptionLengthViolations, isOptionLengthBalanced } from "../validators/mcValidator";
 
 // CF Worker proxy URLs — tried in order. The Worker buffers the upstream
 // response, so the browser timeout must allow a full worksheet section to be
@@ -1197,12 +1198,15 @@ Quality rules:
 - Q8 must explicitly assess author attitude/tone/stance and cite at least two wording signals.
 - options must be an array of exactly four raw option texts. No A/B/C/D prefixes.
 - answer must be one letter: A, B, C, or D.
+- OPTION-LENGTH BALANCE (ALL LEVELS, word count): the correct option and the three distractors must be close in word count. Every wrong option must be within ${OPTION_LENGTH_TOLERANCE_WORDS} words of the correct option — for example, if the correct option has 1 word, every distractor must have 1-${1 + OPTION_LENGTH_TOLERANCE_WORDS} words; if it has 4 words, every distractor must have ${Math.max(1, 4 - OPTION_LENGTH_TOLERANCE_WORDS)}-${4 + OPTION_LENGTH_TOLERANCE_WORDS} words. Do not let the correct answer stand out as the longest option, and never pad a distractor with filler just to reach the length.
+- Evidence-quote questions: write four quotations with nearly equal word counts (the correct quotation must not be noticeably longer than the distractors).
 - For C1 Inference and Structure / Function / Synthesis questions, include evidence[] with at least 2 references and reasoningSteps[] with at least 2 steps.
 - For C1 Vocabulary in Context, do not use the stem "In paragraph X, the word...". Use an analytical stem such as "The author's use of 'X' primarily frames..." or "Within the argument, 'X' most nearly conveys...".
 - For Evidence Reasoning pairs, include matching evidencePairLink fields.
 - For evidence quote questions, options should be short verbatim quotations from the article.
 - Keep explanations concise: 1 sentence each.
 - Keep evidence references short: paragraph/sentence labels or short quoted fragments, not long copied passages.
+- Before returning JSON, silently count the words in each option of every question. Rewrite any wrong option that differs from the correct option's word count by more than ${OPTION_LENGTH_TOLERANCE_WORDS} words.
 
 JSON schema:
 {
@@ -1613,6 +1617,125 @@ export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
   return [...invalid].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
 }
 
+// ---------------------------------------------------------------------------
+// Option-length enforcement (word count, relative to the correct answer)
+// ---------------------------------------------------------------------------
+
+const MC_MAX_CHECK_ROUNDS = 3; // 3 checks, at most 2 regeneration rounds
+
+interface MCViolationReport {
+  invalidIds: string[];
+  hardInvalidIds: string[];
+  lengthInvalidIds: string[];
+}
+
+function getQuestionNumber(id: string): number | null {
+  const match = /^q(\d+)$/i.exec(String(id ?? '').trim());
+  return match ? Number(match[1]) : null;
+}
+
+function sortQuestionIds(ids: Iterable<string>): string[] {
+  return [...new Set(ids)].sort((a, b) => {
+    const aNum = getQuestionNumber(a);
+    const bNum = getQuestionNumber(b);
+    if (aNum === null && bNum === null) return a.localeCompare(b);
+    if (aNum === null) return 1;
+    if (bNum === null) return -1;
+    return aNum - bNum;
+  });
+}
+
+/** Ids of questions whose distractor word counts drift from the correct option. */
+export function getLengthInvalidQuestionIds(questions: MCQuestion[]): string[] {
+  if (!Array.isArray(questions)) return [];
+  const invalid: string[] = [];
+  for (const question of questions) {
+    if (!question?.id) continue;
+    if (!isOptionLengthBalanced(question.options, question.answer)) invalid.push(question.id);
+  }
+  return sortQuestionIds(invalid);
+}
+
+function getMCViolationReport(questions: MCQuestion[], difficulty: Difficulty): MCViolationReport {
+  const hardInvalidIds = difficulty === 'B2' ? getInvalidB2QuestionIds(questions) : [];
+  const lengthInvalidIds = getLengthInvalidQuestionIds(questions);
+  return {
+    invalidIds: sortQuestionIds([...hardInvalidIds, ...lengthInvalidIds]),
+    hardInvalidIds: sortQuestionIds(hardInvalidIds),
+    lengthInvalidIds,
+  };
+}
+
+export function getInvalidMCQuestionIds(questions: MCQuestion[], difficulty: Difficulty): string[] {
+  return getMCViolationReport(questions, difficulty).invalidIds;
+}
+
+/**
+ * Merge a regenerated 5-question half back in, keyed by id. Regenerated items
+ * win; omitted ids keep their previous version; extras are discarded. Without
+ * this, a partial retry response could silently shrink the worksheet.
+ */
+function mergeRegeneratedHalf(
+  previous: MCQuestion[],
+  regenerated: MCQuestion[],
+  start: number,
+  end: number,
+): MCQuestion[] {
+  const byId = new Map<string, MCQuestion>();
+  for (const question of [...previous, ...regenerated]) {
+    if (question?.id) byId.set(question.id, question);
+  }
+  const merged: MCQuestion[] = [];
+  for (let slot = start; slot <= end; slot++) {
+    const question = byId.get(`q${slot}`);
+    if (question) merged.push(question);
+  }
+  return merged;
+}
+
+function describeLengthViolation(question: MCQuestion): string {
+  const violations = getOptionLengthViolations(question.options, question.answer);
+  if (violations.length === 0) return '';
+  const { correctLetter, correctWords } = violations[0];
+  const wrong = violations.map(violation => `${violation.letter}=${violation.words}w`).join(', ');
+  return `${question.id} (correct ${correctLetter}=${correctWords}w; ${wrong})`;
+}
+
+function buildMCRetryCorrection(
+  ids: string[],
+  report: MCViolationReport,
+  questions: MCQuestion[],
+): string {
+  const byId = new Map(questions.map(question => [question.id, question]));
+  const measured = ids
+    .map(id => {
+      const question = byId.get(id);
+      return question ? describeLengthViolation(question) : '';
+    })
+    .filter(Boolean);
+
+  const lines = [
+    `\nRETRY CORRECTION: The previous response failed validation for: ${ids.join(', ')}.`,
+    'Return the COMPLETE requested range, including questions that already pass; do not omit any id.',
+    `OPTION-LENGTH RULE (word count, all levels): every wrong option must be within ${OPTION_LENGTH_TOLERANCE_WORDS} words of the correct option.`,
+  ];
+  if (measured.length > 0) {
+    lines.push(`Measured violations: ${measured.join('; ')}.`);
+  }
+  lines.push(
+    `If the correct option has 1 word, every distractor must have 1-${1 + OPTION_LENGTH_TOLERANCE_WORDS} words; ` +
+    `if it has 4 words, every distractor must have ${Math.max(1, 4 - OPTION_LENGTH_TOLERANCE_WORDS)}-${4 + OPTION_LENGTH_TOLERANCE_WORDS} words. ` +
+    'Rewrite the option wording, not the question stem, and keep the answer a valid letter.'
+  );
+  if (report.hardInvalidIds.length > 0) {
+    lines.push(
+      `B2 SLOT REQUIREMENTS: the previous batch failed hard validation for: ${report.hardInvalidIds.join(', ')}. ` +
+      'Follow every assigned slot exactly, including type, cognitiveLevel, skillTarget, scope, two evidence references, two reasoning steps, distractor metadata, and the q6/q7 link.'
+    );
+  }
+  return lines.join('\n');
+}
+
 async function generateCompleteMCSection(
   article: string,
   difficulty: Difficulty,
@@ -1628,27 +1751,68 @@ async function generateCompleteMCSection(
   );
 
   let [first, second] = await Promise.all([generateBatch(1, 5), generateBatch(6, 10)]);
-  if (difficulty !== 'B2') {
-    return { multipleChoice: [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')] };
-  }
 
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < MC_MAX_CHECK_ROUNDS; round++) {
     const combined = [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')];
-    const invalidIds = getInvalidB2QuestionIds(combined);
-    if (invalidIds.length === 0) return { multipleChoice: combined };
-    if (round === 2) break;
+    const report = getMCViolationReport(combined, difficulty);
+    if (report.invalidIds.length === 0) return { multipleChoice: combined };
+    if (round === MC_MAX_CHECK_ROUNDS - 1) break;
 
-    const correction = `\nRETRY CORRECTION: The previous batch failed hard validation for: ${invalidIds.join(', ')}. Follow every assigned slot exactly, including type, cognitiveLevel, skillTarget, scope, two evidence references, two reasoning steps, distractor metadata, and the q6/q7 link.`;
+    const firstIds = report.invalidIds.filter(id => {
+      const number = getQuestionNumber(id);
+      return number !== null && number >= 1 && number <= 5;
+    });
+    const secondIds = report.invalidIds.filter(id => {
+      const number = getQuestionNumber(id);
+      return number !== null && number >= 6 && number <= 10;
+    });
+
     const jobs: Promise<void>[] = [];
-    if (invalidIds.some(id => Number(id.slice(1)) <= 5)) jobs.push(generateBatch(1, 5, correction).then(value => { first = value; }));
-    if (invalidIds.some(id => Number(id.slice(1)) >= 6)) jobs.push(generateBatch(6, 10, correction).then(value => { second = value; }));
+    if (firstIds.length > 0) {
+      const firstReport: MCViolationReport = {
+        invalidIds: firstIds,
+        hardInvalidIds: report.hardInvalidIds.filter(id => firstIds.includes(id)),
+        lengthInvalidIds: report.lengthInvalidIds.filter(id => firstIds.includes(id)),
+      };
+      jobs.push(generateBatch(1, 5, buildMCRetryCorrection(firstIds, firstReport, combined)).then(value => {
+        first = {
+          multipleChoice: mergeRegeneratedHalf(
+            ensureArray(first.multipleChoice, 'multipleChoice'),
+            ensureArray(value.multipleChoice, 'multipleChoice'),
+            1, 5,
+          ),
+        };
+      }));
+    }
+    if (secondIds.length > 0) {
+      const secondReport: MCViolationReport = {
+        invalidIds: secondIds,
+        hardInvalidIds: report.hardInvalidIds.filter(id => secondIds.includes(id)),
+        lengthInvalidIds: report.lengthInvalidIds.filter(id => secondIds.includes(id)),
+      };
+      jobs.push(generateBatch(6, 10, buildMCRetryCorrection(secondIds, secondReport, combined)).then(value => {
+        second = {
+          multipleChoice: mergeRegeneratedHalf(
+            ensureArray(second.multipleChoice, 'multipleChoice'),
+            ensureArray(value.multipleChoice, 'multipleChoice'),
+            6, 10,
+          ),
+        };
+      }));
+    }
+    if (jobs.length === 0) break; // ids not mappable to a batch; avoid pointless rounds
     await Promise.all(jobs);
   }
 
   // Best-effort: return the last generated batch instead of failing the whole
   // generation. Downstream validation surfaces any remaining quality issues as
   // warnings, so the user still gets a usable worksheet.
-  return { multipleChoice: [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')] };
+  const bestEffort = [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')];
+  const remaining = getMCViolationReport(bestEffort, difficulty).invalidIds;
+  if (remaining.length > 0) {
+    console.warn(`[generation] ${difficulty} MC quality issues remain after retries: ${remaining.join(', ')}`);
+  }
+  return { multipleChoice: bestEffort };
 }
 
 async function runWithConcurrency<T, R>(
