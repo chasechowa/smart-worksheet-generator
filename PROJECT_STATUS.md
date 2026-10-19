@@ -4,7 +4,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `83740134`（source `77f3d4d`；JS `index-CD_CY6n7.js`）。本轮新增 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1 可选，每份 2 题）；`Summary 保证恰好 5 个空` 与 `B2 生成不再硬失败` 仍在。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
+`comprequiz.chao.asia` 现运行纯出题版本 `301c9fba`（source `3248c30`；JS `index-CsKcE3lM.js`）。本轮新增 **MCQ 干扰项长度对齐**：每个干扰项与正确答案的**词数差 ≤ 2**，所有级别启用；不合规则只重生成受影响的 5 题批次，最终仍不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -25,12 +25,12 @@
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
 - 本次发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-09-18 重新构建后发布 `22f482c0`。
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-19 重新构建后发布 `301c9fba`。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`83740134`（source `77f3d4d`，纯出题 + B2 优雅降级 + 5 空保证 + **Sentence Insertion 板块**）。同一构建此前也发布为 `22f482c0`。
-- 主站 JS：`assets/index-CD_CY6n7.js`。已用 cache-bypass 核验线上与本地 dist 一致。上一版 `219c266f`（source `3621eef`，JS `index-ZPhA0dBV.js`）。
+- 生产 canonical deployment：`301c9fba`（source `3248c30`，纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + **MCQ 干扰项词数对齐**）。
+- 主站 JS：`assets/index-CsKcE3lM.js`。已通过部署直连 URL `https://301c9fba.smart-worksheet-generator.pages.dev/` 核验；自定义域本次从沙箱网络不可达（curl `http=000`），非部署问题。上一版 `83740134`（source `77f3d4d`，JS `index-CD_CY6n7.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在本次探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -39,20 +39,21 @@
 
 - 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
 - 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
-- 本地 HEAD `77f3d4d`（Sentence Insertion 板块）。`git push` 因 GitHub:443 网络抖动未成功，**远程待同步**。
+- 本地 HEAD `3248c30`（MCQ 干扰项词数对齐）；已 push `3621eef..3248c30`，**远程已同步**。
 - `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
 ## 6. 出题功能与配置
 
 - B2 共享文章证据地图；Summary **保证恰好 5 个空**（`ensureFiveBlanks`：模型给不够时，从原文中逐字可查的短语里机械补空，长短语优先、再单词，去重且 ≤maxBlankWords）；MCQ 固定十题蓝图。
+- **MCQ 干扰项词数对齐**：每个干扰项与正确答案的词数差 ≤ 2（所有级别）。生成时对不合格题目只重生成其所在的 1–5 / 6–10 批次（最多 2 轮），合并时按 id 保留未返回的题；最终仍不合规只在校验面板给警告。提示词同时要求返回前自检词数。
 - **生成不再硬失败**：证据地图 / Summary / MC 重试用尽后返回 best-effort（问题以警告呈现），不再整份丢弃。
 - DeepSeek 默认 `deepseek-v4-pro`，可选 `deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`；旧 ID 自动修复。生成关闭 thinking，max_tokens 32k。
 - 代理顺序：用户自定义 → `https://api.comprequiz.chao.asia` → `https://smart-worksheet-proxy.saberking8.workers.dev` → 直连。
 
 ## 7. 本次验证
 
-- 出题项目：**178/178** 测试通过；`npx tsc --noEmit` 无错误；`npm run build` 通过（产物 `index-CD_CY6n7.js`）；`.insertion-marker` 已进入内置 CSS 与 `public/export-tailwind.css`。
-- Sentence Insertion 已加 26 条测试（validator / repair / keys / 端到端），未做真实 API 生成验证。
+- 出题项目：**191/191** 测试通过；`npx tsc --noEmit` 无错误；`npm run build` 通过（产物 `index-CsKcE3lM.js`）。
+- MCQ 长度对齐新增 13 条测试（词数助手、校验器警告、非 B2/ B2 生成检查）；未做真实 API 生成验证。
 - 独立工作台：11/11 测试、TypeScript 检查和独立生产构建通过；本地首页与组件编译 HTTP 200。
 - 未运行浏览器交互/截图测试。
 
@@ -104,3 +105,6 @@
 | 2026-09-19 | **新增 TOEFL 式「Sentence Insertion」板块**（默认关闭、A2–C1、每份 2 题）：采用独立板块而非新 MC 题型；新增 `SentenceInsertionQuestion`、`keys.sentenceInsertion`、`GenerationOptions.sentenceInsertion`、`validators/sentenceInsertionValidator.ts`、TestPreview 渲染与 `.insertion-marker` 样式；commit `77f3d4d` | ✅ 178/178、`tsc --noEmit` 无错、构建通过 |
 | 2026-09-19 | 重新构建并部署 CF Pages | ✅ 部署 `22f482c0` / `83740134`，线上 `index-CD_CY6n7.js`（cache-bypass 核验一致） |
 | 2026-09-19 | `git push origin main`(`77f3d4d`) | ❌ GitHub:443 连接抖动，远程待同步 |
+| 2026-10-19 | **MCQ 干扰项长度对齐**（词数差 ≤2，全级别）：新增共享词数助手、正确项相对校验、提示词规则 + 返回前自检；生成重试推广到所有级别，只重生成受影响的 5 题批次并按 id 合并；commit `3248c30` | ✅ 191/191、`tsc --noEmit` 无错、构建通过 |
+| 2026-10-19 | 重新构建并部署 CF Pages | ✅ 部署 `301c9fba`，产物 `index-CsKcE3lM.js`（部署直连 URL 核验；自定义域本机网络不可达） |
+| 2026-10-19 | `git push origin main` | ✅ `3621eef..3248c30`，远程已同步 |
