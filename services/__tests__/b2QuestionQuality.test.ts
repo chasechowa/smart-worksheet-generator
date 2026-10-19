@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MCQuestion, MCQuestionType, CognitiveLevel } from '../../types';
-import { getInvalidB2QuestionIds, getLengthInvalidQuestionIds, getInvalidMCQuestionIds } from '../aiService';
+import { getInvalidB2QuestionIds, getLengthInvalidQuestionIds, getInvalidMCQuestionIds, mergeRegeneratedHalf } from '../aiService';
 
 const slots: Array<[MCQuestionType, CognitiveLevel, NonNullable<MCQuestion['scope']>]> = [
   ['Main Idea', 'synthesis', 'whole-text'],
@@ -87,5 +87,37 @@ describe('option-length enforcement at generation time', () => {
 
   it('leaves the legacy B2 checker length-agnostic', () => {
     expect(getInvalidB2QuestionIds(makeLengthViolation())).toEqual([]);
+  });
+});
+
+describe('normalized length checking and id-safe merging', () => {
+  it('strips option prefixes and tolerates punctuation in the answer', () => {
+    const questions = makeValidQuestions();
+    questions[2].options = ['A. Correct option', 'B. Short one', 'C. Short two', 'D. Short three'];
+    questions[2].answer = 'a.';
+    expect(getLengthInvalidQuestionIds(questions)).toEqual([]);
+  });
+
+  it('flags a prefixed long distractor after normalization', () => {
+    const questions = makeValidQuestions();
+    questions[2].options = ['A. Correct option', 'B. This distractor is far too long now', 'C. Short one', 'D. Short two'];
+    questions[2].answer = 'A.';
+    expect(getLengthInvalidQuestionIds(questions)).toEqual(['q3']);
+  });
+
+  it('merges regenerated halves whose ids differ in case or whitespace', () => {
+    const previous = makeValidQuestions().slice(0, 5);
+    const regenerated = previous.map(question => ({ ...question, id: ` Q${question.id.slice(1)} ` }));
+    const merged = mergeRegeneratedHalf(previous, regenerated, 1, 5);
+    expect(merged.map(question => question.id)).toEqual(['q1', 'q2', 'q3', 'q4', 'q5']);
+  });
+
+  it('keeps previous questions for ids omitted by a partial retry', () => {
+    const previous = makeValidQuestions().slice(0, 5);
+    const partial = [{ ...previous[2], id: 'q3', question: 'Regenerated q3?' }];
+    const merged = mergeRegeneratedHalf(previous, partial, 1, 5);
+    expect(merged.map(question => question.id)).toEqual(['q1', 'q2', 'q3', 'q4', 'q5']);
+    expect(merged[2].question).toBe('Regenerated q3?');
+    expect(merged[0].question).toBe(previous[0].question);
   });
 });

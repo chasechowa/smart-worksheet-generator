@@ -108,8 +108,13 @@ const TYPE_MIGRATION: Record<string, MCQuestionType> = {
   // 'Main Idea', 'Literal Comprehension', 'Vocabulary in Context' stay the same
 };
 
-function stripPrefix(text: string): string {
+export function stripPrefix(text: string): string {
   return String(text ?? '').replace(/^[A-Da-d][.)\]]\s*/, '').replace(/^\d+[.)\]]\s*/, '').trim();
+}
+
+/** Canonical answer letter: trims, uppercases, and tolerates trailing "." or ")". */
+export function normalizeAnswerToken(answer: unknown): string {
+  return String(answer ?? '').trim().toUpperCase().replace(/[.)\]](?=\s*$)/, '').trim();
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
-import { OPTION_LENGTH_TOLERANCE_WORDS, getOptionLengthViolations, isOptionLengthBalanced } from "../validators/mcValidator";
+import { OPTION_LENGTH_TOLERANCE_WORDS, getOptionLengthViolations, stripPrefix, normalizeAnswerToken } from "../validators/mcValidator";
 
 // CF Worker proxy URLs — tried in order. The Worker buffers the upstream
 // response, so the browser timeout must allow a full worksheet section to be
@@ -1645,13 +1645,23 @@ function sortQuestionIds(ids: Iterable<string>): string[] {
   });
 }
 
+/**
+ * Option length violations on normalized text: option prefixes ("A.", "1.") are
+ * stripped and the answer is canonicalized, matching validateMC's own
+ * normalization so the generation loop and the validator agree.
+ */
+function getNormalizedLengthViolations(question: MCQuestion) {
+  const options = Array.isArray(question.options) ? question.options.map(stripPrefix) : question.options;
+  return getOptionLengthViolations(options, normalizeAnswerToken(question.answer));
+}
+
 /** Ids of questions whose distractor word counts drift from the correct option. */
 export function getLengthInvalidQuestionIds(questions: MCQuestion[]): string[] {
   if (!Array.isArray(questions)) return [];
   const invalid: string[] = [];
   for (const question of questions) {
     if (!question?.id) continue;
-    if (!isOptionLengthBalanced(question.options, question.answer)) invalid.push(question.id);
+    if (getNormalizedLengthViolations(question).length > 0) invalid.push(question.id);
   }
   return sortQuestionIds(invalid);
 }
@@ -1675,7 +1685,17 @@ export function getInvalidMCQuestionIds(questions: MCQuestion[], difficulty: Dif
  * win; omitted ids keep their previous version; extras are discarded. Without
  * this, a partial retry response could silently shrink the worksheet.
  */
-function mergeRegeneratedHalf(
+function canonicalQuestionId(id: unknown): string {
+  return String(id ?? '').trim().toLowerCase();
+}
+
+/**
+ * Merge a regenerated 5-question half back in, keyed by a canonical id
+ * (trimmed, lowercased) so "Q3" / " q3 " match "q3". Regenerated items win;
+ * omitted ids keep their previous version; extras are discarded. Emitted ids
+ * are canonicalized to qN so keys and later retries stay aligned.
+ */
+export function mergeRegeneratedHalf(
   previous: MCQuestion[],
   regenerated: MCQuestion[],
   start: number,
@@ -1683,18 +1703,21 @@ function mergeRegeneratedHalf(
 ): MCQuestion[] {
   const byId = new Map<string, MCQuestion>();
   for (const question of [...previous, ...regenerated]) {
-    if (question?.id) byId.set(question.id, question);
+    const id = canonicalQuestionId(question?.id);
+    if (id) byId.set(id, question);
   }
   const merged: MCQuestion[] = [];
   for (let slot = start; slot <= end; slot++) {
-    const question = byId.get(`q${slot}`);
-    if (question) merged.push(question);
+    const canonical = `q${slot}`;
+    const question = byId.get(canonical);
+    if (!question) continue;
+    merged.push(question.id === canonical ? question : { ...question, id: canonical });
   }
   return merged;
 }
 
 function describeLengthViolation(question: MCQuestion): string {
-  const violations = getOptionLengthViolations(question.options, question.answer);
+  const violations = getNormalizedLengthViolations(question);
   if (violations.length === 0) return '';
   const { correctLetter, correctWords } = violations[0];
   const wrong = violations.map(violation => `${violation.letter}=${violation.words}w`).join(', ');
@@ -1752,11 +1775,31 @@ async function generateCompleteMCSection(
 
   let [first, second] = await Promise.all([generateBatch(1, 5), generateBatch(6, 10)]);
 
+  // Non-B2 keeps the original single generation pass: no length-triggered API
+  // retries. Length issues still surface as validator warnings.
+  if (difficulty !== 'B2') {
+    const combined = [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')];
+    const remainingLength = getLengthInvalidQuestionIds(combined);
+    if (remainingLength.length > 0) {
+      console.warn(`[generation] ${difficulty} length warnings for ${remainingLength.join(', ')}; no retry (non-B2)`);
+    }
+    return { multipleChoice: combined };
+  }
+
+  let regenerationRounds = 0;
   for (let round = 0; round < MC_MAX_CHECK_ROUNDS; round++) {
     const combined = [...ensureArray(first.multipleChoice, 'multipleChoice'), ...ensureArray(second.multipleChoice, 'multipleChoice')];
     const report = getMCViolationReport(combined, difficulty);
-    if (report.invalidIds.length === 0) return { multipleChoice: combined };
+    if (report.invalidIds.length === 0) {
+      if (regenerationRounds > 0) {
+        console.info(`[generation] B2 MC settled after ${regenerationRounds} regeneration round(s)`);
+      }
+      return { multipleChoice: combined };
+    }
     if (round === MC_MAX_CHECK_ROUNDS - 1) break;
+    // Length-only issues get at most one regeneration round. A second round is
+    // reserved for B2 hard slot/evidence failures, matching the old budget.
+    if (report.hardInvalidIds.length === 0 && regenerationRounds >= 1) break;
 
     const firstIds = report.invalidIds.filter(id => {
       const number = getQuestionNumber(id);
@@ -1802,6 +1845,7 @@ async function generateCompleteMCSection(
     }
     if (jobs.length === 0) break; // ids not mappable to a batch; avoid pointless rounds
     await Promise.all(jobs);
+    regenerationRounds++;
   }
 
   // Best-effort: return the last generated batch instead of failing the whole
