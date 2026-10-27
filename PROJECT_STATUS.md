@@ -119,3 +119,4 @@
 | 2026-10-28 | `npx wrangler pages deploy dist --project-name smart-worksheet-generator --branch main` | ✅ 部署 `469c0e86`（Production/main，source `18f9fc9`）；直连与自定义域核验一致 |
 | 2026-10-28 | docs: 同步部署记录 `ce9425d`；`git push origin main` | ✅ `18f9fc9..ce9425d`，远程 `main` 同步 |
 | 2026-10-28 | docs: 收尾日志（本行所在提交）提交并 `git push origin main` | ✅ 远程 `main` 已同步 |
+| 2026-10-28 | 线上浏览器冒烟（Playwright + 本机 Edge headless，访问 `comprequiz.chao.asia/?smoke`） | ✅ HTTP 200、标题 `Smart Worksheet Generator`、无 console/page 错误、首页 UI 正常渲染（A2–C1、Generate Sections 可见） |
