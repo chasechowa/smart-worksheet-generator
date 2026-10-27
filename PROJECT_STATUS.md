@@ -1,10 +1,10 @@
 # PROJECT STATUS — Smart Worksheet Generator
 
-最后更新：**2026-09-10**
+最后更新：**2026-10-28**
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `c5828dd8`（source `8fdd19d`；JS `index-BTGkjgfy.js`）。本轮**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
+`comprequiz.chao.asia` 现运行纯出题版本 `469c0e86`（source `18f9fc9`；JS `index-BTGkjgfy.js`，与上一版 `c5828dd8` 产物完全一致，2026-10-28 重新构建并重发验证）。本轮**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -24,22 +24,23 @@
 - 本项目发布命令：`npm run build`，然后 `npx wrangler pages deploy dist --project-name smart-worksheet-generator --branch main`。
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
-- 本次发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-19 重新构建后发布 `c5828dd8`。
+- 2026-09-10 曾发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-28 重新构建后发布 `469c0e86`（产物哈希与 `c5828dd8` 相同）。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`c5828dd8`（source `8fdd19d`，纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + MCQ 词数对齐 + **速度恢复/重试预算收紧**）。
-- 主站 JS：`assets/index-BTGkjgfy.js`。已核验部署直连 URL 与 `smart-worksheet-generator.pages.dev` 均返回该产物。上一版 `301c9fba`（source `3248c30`，JS `index-CsKcE3lM.js`）。
+- 生产 canonical deployment：`469c0e86`（source `18f9fc9`，纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + MCQ 词数对齐 + **速度恢复/重试预算收紧**）。2026-10-28 重新构建并重发，CF 报「Uploaded 0 files（5 already uploaded）」，产物与 `c5828dd8` 逐字节一致。
+- 主站 JS：`assets/index-BTGkjgfy.js`。已核验直连 `https://469c0e86.smart-worksheet-generator.pages.dev/` 与 `https://comprequiz.chao.asia/?cache-bust` 均返回该产物（`cf-cache-status: DYNAMIC`）。上一版 `c5828dd8`（source `8fdd19d`，同 JS）；再上一版 `301c9fba`（source `3248c30`，JS `index-CsKcE3lM.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
-- 裸 `/workbench` 在本次探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
+- 裸 `/workbench` 在 2026-09-10 探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
 
 ## 5. Git 状态
 
 - 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
 - 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
-- 本地 HEAD `8fdd19d`（速度恢复/重试预算收紧）。`git push` 中断且远程当前不可达，**push 结果待网络恢复后确认**。
+- 本地 HEAD `18f9fc9`（速度恢复 + 部署记录）。2026-10-28 修正上游跟踪：`main` 原误跟 `origin/master`，已改为 `origin/main`。
+- 2026-10-28 `git push origin main` 成功：`abc7291..18f9fc9`；此前待确认的 `8fdd19d`、`18f9fc9` 均已同步到远程 `main`。
 - `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
 ## 6. 出题功能与配置
@@ -56,6 +57,7 @@
 - MCQ 长度相关共 17 条测试（词数助手、校验警告、生成检查、前缀/答案归一化、按 id 合并）；未做真实 API 生成验证。
 - 独立工作台：11/11 测试、TypeScript 检查和独立生产构建通过；本地首页与组件编译 HTTP 200。
 - 未运行浏览器交互/截图测试。
+- 2026-10-28 接手复核：`npm test` **195/195**、`npx tsc --noEmit` 无错、`npm run build` 复现 `index-BTGkjgfy.js`；CF 部署 `469c0e86`（Production/main）双 URL 核验一致。未做真实 API 出题与浏览器交互验证。
 
 ## 8. 后续
 
@@ -110,4 +112,8 @@
 | 2026-10-19 | `git push origin main` | ✅ `3621eef..3248c30`，远程已同步 |
 | 2026-10-19 | **恢复 MCQ 生成速度**：A2/B1/C1 取消长度触发重试；B2 长度问题最多 1 轮；修复合并 id 大小写与选项前缀计数；commit `8fdd19d` | ✅ 195/195、`tsc --noEmit` 无错、构建通过 |
 | 2026-10-19 | 重新构建并部署 CF Pages | ✅ 部署 `c5828dd8`，产物 `index-BTGkjgfy.js`（直连 URL 与 pages.dev 核验一致） |
-| 2026-10-19 | `git push origin main` | ⚠️ 传输中断且远程不可达，结果待确认 |
+| 2026-10-19 | `git push origin main` | ✅ 当时中断，2026-10-28 复核确认已同步（`abc7291..18f9fc9`） |
+| 2026-10-28 | 接手核验：读状态文档、`git status/log`、`wrangler whoami`；CF 账号 `23104164…`、Pages 项目可写、无并发代理 | ✅ 环境就绪 |
+| 2026-10-28 | 修正 `branch.main.merge`（`master`→`main`）并 `git push origin main` | ✅ `abc7291..18f9fc9`，远程 `main` 同步 |
+| 2026-10-28 | `npm test`、`npx tsc --noEmit`、`npm run build` | ✅ 195/195、类型检查无错、产物 `index-BTGkjgfy.js`（可复现） |
+| 2026-10-28 | `npx wrangler pages deploy dist --project-name smart-worksheet-generator --branch main` | ✅ 部署 `469c0e86`（Production/main，source `18f9fc9`）；直连与自定义域核验一致 |
