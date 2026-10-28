@@ -4,7 +4,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `469c0e86`（source `18f9fc9`；JS `index-BTGkjgfy.js`，与上一版 `c5828dd8` 产物完全一致，2026-10-28 重新构建并重发验证）。本轮**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
+`comprequiz.chao.asia` 现运行纯出题版本 `d55114c7`（source `4aa2792`；JS `index-BJ2aUbgQ.js`）。本轮修复 **B2 校验误报**：`validateMC` 原先严格比较 `type/cognitiveLevel/scope`，生成侧却容忍大小写/空格，模型返回 `Inference`/`Synthesis` 时生成判定通过、重试永不触发，弹窗无法消除；现两侧共用同一份槽位表与规范化规则，剩余元数据差异自动对齐并记为 warning。此前**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -25,12 +25,12 @@
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
 - 2026-09-10 曾发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-28 重新构建后发布 `469c0e86`（产物哈希与 `c5828dd8` 相同）。
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-28 重新构建后发布 `d55114c7`（产物 `index-BJ2aUbgQ.js`）。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`469c0e86`（source `18f9fc9`，纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + MCQ 词数对齐 + **速度恢复/重试预算收紧**）。2026-10-28 重新构建并重发，CF 报「Uploaded 0 files（5 already uploaded）」，产物与 `c5828dd8` 逐字节一致。
-- 主站 JS：`assets/index-BTGkjgfy.js`。已核验直连 `https://469c0e86.smart-worksheet-generator.pages.dev/` 与 `https://comprequiz.chao.asia/?cache-bust` 均返回该产物（`cf-cache-status: DYNAMIC`）。上一版 `c5828dd8`（source `8fdd19d`，同 JS）；再上一版 `301c9fba`（source `3248c30`，JS `index-CsKcE3lM.js`）。
+- 生产 canonical deployment：`d55114c7`（source `4aa2792`，B2 槽位元数据规范化 + 纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + MCQ 词数对齐 + 速度恢复/重试预算收紧）。
+- 主站 JS：`assets/index-BJ2aUbgQ.js`。已核验部署直连 `https://d55114c7.smart-worksheet-generator.pages.dev/` 返回该产物；自定义域清缓存请求返回 200 且 `cf-cache-status: DYNAMIC`，但本机网络间歇超时。上一版 `469c0e86`（JS `index-BTGkjgfy.js`，内容同 `c5828dd8`）；再上一版 `301c9fba`（source `3248c30`，JS `index-CsKcE3lM.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在 2026-09-10 探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -45,6 +45,7 @@
 
 ## 6. 出题功能与配置
 
+- **B2 槽位元数据规范化（2026-10-28）**：`type` / `cognitiveLevel` / `scope` 统一按忽略大小写、空格、斜杠的规则规范化（`Inference`→`inference`、`Structure/Function/Synthesis`→`Structure / Function / Synthesis`、`Whole Text`→`whole-text`）。槽位表只有一份（`validators/mcValidator.ts` 的 `B2_MC_SLOT_RULES`），生成侧与校验侧共用；生成后仍与蓝图不符的元数据自动对齐并记 warning，不再作为 error 阻断出题。
 - B2 共享文章证据地图；Summary **保证恰好 5 个空**（`ensureFiveBlanks`：模型给不够时，从原文中逐字可查的短语里机械补空，长短语优先、再单词，去重且 ≤maxBlankWords）；MCQ 固定十题蓝图。
 - **MCQ 干扰项词数对齐**：每个干扰项与正确答案的词数差 ≤ 2（所有级别，提示词 + 校验警告）。重试预算：A2/B1/C1 **不因长度重试**（保持原速度）；B2 长度问题最多 1 轮，第 2 轮只用于 B2 槽位/证据硬失败。合并回归批次时 id 归一化（trim + 小写，输出 qN）；生成时先剥离选项前缀并规范化答案再计数。
 - **生成不再硬失败**：证据地图 / Summary / MC 重试用尽后返回 best-effort（问题以警告呈现），不再整份丢弃。
@@ -58,6 +59,7 @@
 - 独立工作台：11/11 测试、TypeScript 检查和独立生产构建通过；本地首页与组件编译 HTTP 200。
 - 未运行浏览器交互/截图测试。
 - 2026-10-28 接手复核：`npm test` **195/195**、`npx tsc --noEmit` 无错、`npm run build` 复现 `index-BTGkjgfy.js`；CF 部署 `469c0e86`（Production/main）双 URL 核验一致。未做真实 API 出题与浏览器交互验证。
+- 2026-10-28 B2 校验修复：**199/199**、`tsc --noEmit` 无错、构建 `index-BJ2aUbgQ.js`；新增 4 条回归测试（修复前 3 条失败）锁定大写/空格/斜杠变体与真实错位。未做真实 API 出题验证。
 
 ## 8. 后续
 
@@ -120,3 +122,6 @@
 | 2026-10-28 | docs: 同步部署记录 `ce9425d`；`git push origin main` | ✅ `18f9fc9..ce9425d`，远程 `main` 同步 |
 | 2026-10-28 | docs: 收尾日志（本行所在提交）提交并 `git push origin main` | ✅ 远程 `main` 已同步 |
 | 2026-10-28 | 线上浏览器冒烟（Playwright + 本机 Edge headless，访问 `comprequiz.chao.asia/?smoke`） | ✅ HTTP 200、标题 `Smart Worksheet Generator`、无 console/page 错误、首页 UI 正常渲染（A2–C1、Generate Sections 可见） |
+| 2026-10-28 | 复现 B2 出题弹窗：模型返回大写 `Inference`/`Synthesis` 时，生成侧宽松检查通过、`validateMC` 严格比较判 error，重试永远不触发 | ✅ 新增回归测试 4 条（修复前 3 条失败，错误与线上截图一致） |
+| 2026-10-28 | 修复：`type/cognitiveLevel/scope` 统一规范化；校验与生成共用 `B2_MC_SLOT_RULES`；残留元数据差异自动对齐为 warning；commit `4aa2792` | ✅ 199/199、`tsc --noEmit` 无错、构建 `index-BJ2aUbgQ.js` |
+| 2026-10-28 | 重新构建并部署 CF Pages | ✅ 部署 `d55114c7`（Production/main，source `4aa2792`），产物 `index-BJ2aUbgQ.js`（直连源核验一致） |
