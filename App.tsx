@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { WorksheetData, AppSettings, Difficulty, Project, ValidationResult, GenerationOptions, ValidationIssue } from './types';
-import { generateAndRefine } from './services/aiService';
+import { generateAndRefine, regenerateMCQuestion, applyRegeneratedMCQuestion } from './services/aiService';
 import { validateWorksheet } from './services/validatorService';
 import { createProject, saveProject, getProjects, getProject } from './services/storageService';
 import { getActiveConfig } from './services/configService';
@@ -793,6 +793,8 @@ export default function App() {
   // Project state
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [regeneratingQuestionId, setRegeneratingQuestionId] = useState<string | null>(null);
+  const [regeneratedNotice, setRegeneratedNotice] = useState<{ id: string; previousData: WorksheetData } | null>(null);
 
   const getProjectTitleSeed = () => {
     const fromData = data?.title?.trim();
@@ -1030,6 +1032,51 @@ export default function App() {
       setData(validationResult.data);
       setValidationResult(null);
     }
+  };
+
+  const handleRegenerateQuestion = async (questionId: string) => {
+    if (!data || regeneratingQuestionId) return;
+    const current = data.multipleChoice?.find(question => question.id === questionId);
+    if (!current) return;
+
+    setRegeneratingQuestionId(questionId);
+    setError(null);
+    setRefinementSummary(null);
+    const previousData = data;
+
+    try {
+      const regenerated = await regenerateMCQuestion(
+        article,
+        settings.difficulty,
+        questionId,
+        data.multipleChoice,
+        message => setLoadingMessage(message),
+      );
+      const nextData: WorksheetData = {
+        ...data,
+        multipleChoice: applyRegeneratedMCQuestion(data.multipleChoice, regenerated, settings.difficulty),
+        keys: { ...data.keys, mc: { ...data.keys.mc, [questionId]: regenerated.answer } },
+      };
+      const validation = scopeValidationResult(
+        validateWorksheet(nextData, article, settings.difficulty),
+        generationOptions,
+      );
+      setData(validation.data);
+      setValidationResult(validation.issues.length > 0 ? { ...validation, data: validation.data } : null);
+      setRegeneratedNotice({ id: questionId, previousData });
+    } catch (err: any) {
+      setError(err?.message || `Failed to regenerate ${questionId}`);
+    } finally {
+      setRegeneratingQuestionId(null);
+      setLoadingMessage('Generating...');
+    }
+  };
+
+  const handleUndoRegeneration = () => {
+    if (!regeneratedNotice) return;
+    setData(regeneratedNotice.previousData);
+    setValidationResult(null);
+    setRegeneratedNotice(null);
   };
 
   const handleLoadProject = (project: Project) => {
@@ -1393,6 +1440,13 @@ export default function App() {
         </div>
       )}
 
+      {regeneratedNotice && !error && (
+        <div className="text-xs p-2 rounded border bg-indigo-50 border-indigo-200 text-indigo-800 flex items-center justify-between gap-2">
+          <span>Question {regeneratedNotice.id.replace(/^q/i, '')} regenerated with the same skill target.</span>
+          <button onClick={handleUndoRegeneration} className="font-bold underline hover:text-indigo-600">Undo</button>
+        </div>
+      )}
+
       <ValidationPanel
         result={validationResult}
         onRetry={handleRetryValidation}
@@ -1615,6 +1669,8 @@ export default function App() {
                   visibleSections={visibleSections}
                   sectionOrder={sectionOrder}
                   onUpdate={(key, val) => setData({...data, [key]: val})}
+                  onRegenerateQuestion={handleRegenerateQuestion}
+                  regeneratingQuestionId={regeneratingQuestionId}
                   viewMode={viewMode}
                 />
                 <p className="mt-12 text-center text-[11px] text-gray-300 font-medium tracking-wider uppercase no-print">CHASECCC</p>

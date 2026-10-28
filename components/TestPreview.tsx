@@ -135,8 +135,10 @@ const WorksheetPaper: React.FC<{
   visibleSections: Set<string>;
   sectionOrder: string[];
   onUpdate?: (key: keyof WorksheetData, val: any) => void;
+  onRegenerateQuestion?: (id: string) => void;
+  regeneratingQuestionId?: string | null;
   viewMode: ViewMode;
-}> = ({ data, settings, visibleSections, sectionOrder, onUpdate, viewMode }) => {
+}> = ({ data, settings, visibleSections, sectionOrder, onUpdate, onRegenerateQuestion, regeneratingQuestionId, viewMode }) => {
   
   const isCompact = viewMode === 'print-compact' || viewMode === 'pdf';
   const isInteractive = viewMode === 'interactive';
@@ -237,18 +239,33 @@ const WorksheetPaper: React.FC<{
             <div className={isCompact ? 'space-y-3' : 'space-y-6'}>
               {(data.multipleChoice || []).map((q, i) => (
                 <div key={q.id} className="avoid-break mcq-container">
-                  <div className="flex gap-3 mb-1">
+                  <div className="flex gap-3 mb-1 items-start">
                     <span className="font-black bg-black text-white px-2 py-0.5 text-xs h-fit mt-1 rounded-sm">{i + 1}</span>
-                    <PrintableField 
-                      value={q.question}
-                      onChange={e => {
-                        const next = [...data.multipleChoice];
-                        next[i].question = e.target.value;
-                        update('multipleChoice', next);
-                      }}
-                      className="font-bold"
-                      viewMode={viewMode}
-                    />
+                    <div className="flex-1 min-w-0">
+                      <PrintableField 
+                        value={q.question}
+                        onChange={e => {
+                          const next = [...data.multipleChoice];
+                          next[i].question = e.target.value;
+                          update('multipleChoice', next);
+                        }}
+                        className="font-bold"
+                        viewMode={viewMode}
+                      />
+                    </div>
+                    {viewMode === 'editor' && onRegenerateQuestion && (
+                      <button
+                        type="button"
+                        onClick={() => onRegenerateQuestion(q.id)}
+                        disabled={regeneratingQuestionId === q.id}
+                        title="Regenerate this question with the same skill target"
+                        aria-label={`Regenerate question ${i + 1}`}
+                        className="no-print shrink-0 mt-0.5 inline-flex items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-700 hover:bg-indigo-100 disabled:cursor-wait disabled:opacity-60"
+                      >
+                        <i className={`fas ${regeneratingQuestionId === q.id ? 'fa-spinner fa-spin' : 'fa-rotate-right'}`}></i>
+                        {regeneratingQuestionId === q.id ? 'Working' : 'Regenerate'}
+                      </button>
+                    )}
                   </div>
                   <div className={`grid grid-cols-1 ${viewMode === 'editor' ? '' : 'md:grid-cols-2'} ml-10 ${isCompact ? 'gap-x-4 gap-y-0' : 'gap-x-8 gap-y-1'}`}>
                     {q.options.map((opt, oIdx) => {
