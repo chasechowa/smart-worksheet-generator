@@ -341,8 +341,8 @@ function buildLevelMCBlueprint(difficulty: Difficulty): string {
     - Q4 Inference, cognitiveLevel: inference. Require connecting evidence from two different parts of the article.
     - Q5 Inference, cognitiveLevel: synthesis. Test an unstated assumption, limitation, or likely consequence.
     - Q6 Evidence Reasoning, cognitiveLevel: inference. Claim question; link it to Q7 with evidencePairLink.
-    - Q7 Evidence Reasoning, cognitiveLevel: inference. Evidence question for Q6; options must be short verbatim quotations.
-    - Q8 Structure / Function / Synthesis, cognitiveLevel: synthesis. ALWAYS test the author's attitude, tone, stance, or a change in stance using at least two language signals.
+    - Q7 Evidence Reasoning, cognitiveLevel: inference. Evidence question for Q6; options must be short verbatim quotations of similar length; the three wrong quotations must support a different claim or be true but irrelevant, never the same claim.
+    - Q8 Structure / Function / Synthesis, cognitiveLevel: synthesis. ALWAYS test the author's attitude, tone, stance, or a change in stance: quote or name at least one specific wording signal in the stem and ask what it reveals about the stance.
     - Q9 Vocabulary in Context, cognitiveLevel: inference. Target a B2 academic/polysemous word or phrase.
     - Q10 Structure / Function / Synthesis, cognitiveLevel: synthesis. Test author purpose, paragraph function, argumentative structure, or why evidence is included.
 
@@ -1180,7 +1180,7 @@ async function generateCompleteSummarySection(
   throw new Error('Summary generation returned no usable result. Please retry or switch to DeepSeek V4 Pro.');
 }
 
-function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number, analysis?: ArticleAnalysisMap | null): string {
+export function buildMCBatchPrompt(article: string, difficulty: Difficulty, start: number, end: number, analysis?: ArticleAnalysisMap | null): string {
   const profile = getDifficultyProfile(difficulty);
   const fullBlueprint = buildLevelMCBlueprint(difficulty);
   const requestedBlueprint = difficulty === 'B2'
@@ -1203,6 +1203,9 @@ Quality rules:
 - Correct answers must be text-supported and paraphrased unless the slot is Vocabulary in Context or Evidence Reasoning quotes.
 - Every question needs: id, type, cognitiveLevel, question, options, answer, explanation.
 - Every wrong option needs distractor metadata with one permitted misreading pattern and a concise rationale.
+- Distractors must be plausible text-based misreadings. Never use absolute or overreaching wording (always, never, only, all, completely, prove, most important) and never an off-topic option the article does not discuss.
+- Evidence-question quotations: all four options must be verbatim article quotations of similar length (within 2 words); the three wrong quotations must support a different claim or be true but irrelevant — they must not also support the claim.
+- Q8: do not use a generic "What is the author's attitude?" stem; quote or name at least one specific wording signal and ask what it reveals about the author's stance.
 - For B2 inference/synthesis items, include evidence[] with at least two short references and reasoningSteps[] with at least two real reasoning steps.
 - For every B2 item include skillTarget and scope (single-paragraph, cross-paragraph, or whole-text).
 - A B2 item labelled inference must not be answerable by locating one sentence or matching keywords.

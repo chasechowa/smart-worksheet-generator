@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MCQuestion, MCQuestionType, CognitiveLevel } from '../../types';
-import { getInvalidB2QuestionIds, getLengthInvalidQuestionIds, getInvalidMCQuestionIds, mergeRegeneratedHalf } from '../aiService';
+import { getInvalidB2QuestionIds, getLengthInvalidQuestionIds, getInvalidMCQuestionIds, mergeRegeneratedHalf, buildMCBatchPrompt } from '../aiService';
 
 const slots: Array<[MCQuestionType, CognitiveLevel, NonNullable<MCQuestion['scope']>]> = [
   ['Main Idea', 'synthesis', 'whole-text'],
@@ -70,6 +70,15 @@ describe('getInvalidB2QuestionIds', () => {
     const questions = makeValidQuestions();
     questions[1].question = 'Which stated finding most directly supports the article’s central claim?';
     expect(getInvalidB2QuestionIds(questions)).not.toContain('q2');
+  });
+});
+
+describe('B2 batch prompt quality rules', () => {
+  it('states the hardened distractor, quote-pair, and attitude rules', () => {
+    const prompt = buildMCBatchPrompt('Article text', 'B2', 6, 10);
+    expect(prompt).toContain('must not also support the claim');
+    expect(prompt).toContain('Never use absolute or overreaching wording');
+    expect(prompt).toContain('generic "What is the author\'s attitude?" stem');
   });
 });
 
