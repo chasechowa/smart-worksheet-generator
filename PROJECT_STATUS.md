@@ -4,7 +4,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `da6b837e`（source `247f015`；JS `index-D0EkTrxw.js`）。本轮新增**单题重生**（编辑视图每题 ↻，按原槽位重写、最多 3 次质量重试、就地替换、一步 Undo）；同时**收紧 B2 质量边界**：Q2 禁止数字/统计口径，干扰项禁止绝对化与离题，Q7 引文必须等长且错误项不得也支持同一主张，Q8 题干必须锚定具体语言信号。继续保留上一轮 B2 校验元数据规范化（大小写/空格/斜杠容错，残留差异自动对齐为 warning）。此前**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
+`comprequiz.chao.asia` 现运行纯出题版本 `0ebfe3a0`（source `13c8160`；JS `index-CZ2OXYkh.js`）。本轮新增**单题重生**（编辑视图每题 ↻，按原槽位重写、最多 3 次质量重试、就地替换、一步 Undo）；同时**收紧 B2 质量边界**：Q2 禁止数字/统计口径，干扰项禁止绝对化与离题，Q7 引文必须等长且错误项不得也支持同一主张，Q8 题干必须锚定具体语言信号。继续保留上一轮 B2 校验元数据规范化（大小写/空格/斜杠容错，残留差异自动对齐为 warning）。此前**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -25,12 +25,12 @@
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
 - 2026-09-10 曾发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-28 重新构建后发布 `da6b837e`（产物 `index-D0EkTrxw.js`）。
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-28 重新构建后发布 `0ebfe3a0`（产物 `index-CZ2OXYkh.js`）。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`da6b837e`（source `247f015`，单题重生 + B2 质量边界收紧 + 槽位元数据规范化 + 纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + MCQ 词数对齐 + 速度恢复）。
-- 主站 JS：`assets/index-D0EkTrxw.js`。已核验 `comprequiz.chao.asia` 清缓存请求返回新产物（`cf-cache-status: DYNAMIC`）；上一版 `d55114c7`（JS `index-BJ2aUbgQ.js`）、`469c0e86`（JS `index-BTGkjgfy.js`）。
+- 生产 canonical deployment：`0ebfe3a0`（source `13c8160`，单题重生 + B2 质量边界收紧 + 槽位元数据规范化 + 纯出题 + B2 优雅降级 + 5 空保证 + Sentence Insertion + MCQ 词数对齐 + 速度恢复）。
+- 主站 JS：`assets/index-CZ2OXYkh.js`。已核验 `comprequiz.chao.asia` 清缓存请求返回新产物（`cf-cache-status: DYNAMIC`）；上一版 `d55114c7`（JS `index-BJ2aUbgQ.js`）、`469c0e86`（JS `index-BTGkjgfy.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在 2026-09-10 探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -39,7 +39,7 @@
 
 - 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
 - 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
-- 本地 HEAD `247f015`（单题重生 + B2 质量收紧 + 计划文档）。远程 `main` 同步见操作日志。
+- 本地 HEAD `13c8160`（单题重生 + B2 质量收紧 + 计划文档）。远程 `main` 同步见操作日志。
 - 2026-10-28 曾修正上游跟踪：`main` 原误跟 `origin/master`，现为 `origin/main`；`abc7291..18f9fc9` 已推送。
 - `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
@@ -47,6 +47,7 @@
 
 - **B2 槽位元数据规范化（2026-10-28）**：`type` / `cognitiveLevel` / `scope` 统一按忽略大小写、空格、斜杠的规则规范化（`Inference`→`inference`、`Structure/Function/Synthesis`→`Structure / Function / Synthesis`、`Whole Text`→`whole-text`）。槽位表只有一份（`validators/mcValidator.ts` 的 `B2_MC_SLOT_RULES`），生成侧与校验侧共用；生成后仍与蓝图不符的元数据自动对齐并记 warning，不再作为 error 阻断出题。
 - **单题重生（2026-10-28）**：编辑视图每题标题右侧 `↻ Regenerate`。`regenerateMCQuestion` 复用该槽位的批量提示词并追加改进指令，保持原槽位（B2 用固定蓝图；其他级别沿用原 `type/level/scope`）；候选必须通过结构、槽位、证据、干扰项 rationale、词数 ±2、题干去重检查，最多 3 次，失败不动原题；成功后就地替换并更新 `keys.mc`，界面显示提示与一步 Undo。打印/PDF/交互视图不显示该按钮。
+- **单题重生不改动其他题**：重生后的校验传入 `{ fixAnswerDistribution: false }`，避免为平衡 A/B/C/D 而轮换其他题目的选项与答案。
 - **B2 质量边界（2026-10-28）**：Q2 禁止数字/百分比/统计口径（生成侧硬重试 + 校验 warning）；干扰项禁止 always/never/only/all/completely/prove 等绝对化或离题表述；Q7 四条引文长度相近（±2 词），且错误引文不得也支持同一主张；Q8 题干必须引用或点名具体语言信号，不允许通用 "author's attitude" 问法。
 - B2 共享文章证据地图；Summary **保证恰好 5 个空**（`ensureFiveBlanks`：模型给不够时，从原文中逐字可查的短语里机械补空，长短语优先、再单词，去重且 ≤maxBlankWords）；MCQ 固定十题蓝图。
 - **MCQ 干扰项词数对齐**：每个干扰项与正确答案的词数差 ≤ 2（所有级别，提示词 + 校验警告）。重试预算：A2/B1/C1 **不因长度重试**（保持原速度）；B2 长度问题最多 1 轮，第 2 轮只用于 B2 槽位/证据硬失败。合并回归批次时 id 归一化（trim + 小写，输出 qN）；生成时先剥离选项前缀并规范化答案再计数。
@@ -62,7 +63,7 @@
 - 未运行浏览器交互/截图测试。
 - 2026-10-28 接手复核：`npm test` **195/195**、`npx tsc --noEmit` 无错、`npm run build` 复现 `index-BTGkjgfy.js`；CF 部署 `469c0e86`（Production/main）双 URL 核验一致。未做真实 API 出题与浏览器交互验证。
 - 2026-10-28 B2 校验修复：**199/199**、`tsc --noEmit` 无错、构建 `index-BJ2aUbgQ.js`；新增 4 条回归测试（修复前 3 条失败）锁定大写/空格/斜杠变体与真实错位。未做真实 API 出题验证。
-- 2026-10-28 单题重生 + B2 质量收紧：**212/212**、`tsc --noEmit` 无错、构建 `index-D0EkTrxw.js`；新增 10 条测试（Q2 两态、提示词规则、单题 prompt/验收/重试、按钮仅编辑态）。未做真实 API 重生验证。
+- 2026-10-28 单题重生 + B2 质量收紧：**214/214**、`tsc --noEmit` 无错、构建 `index-CZ2OXYkh.js`；新增 12 条测试（Q2 两态、提示词规则、单题 prompt/验收/重试、按钮仅编辑态、重生不轮换其他题）。未做真实 API 重生验证。
 
 ## 8. 后续
 
@@ -131,4 +132,5 @@
 | 2026-10-28 | 审查用户 B2 样卷：Q2 考百分比违反边界、Q7 多答案且正确答案最长、Q1/Q3/Q5/Q7 词数超差、多题可靠应试技巧排除 | ✅ 计划 `docs/superpowers/plans/2026-10-28-b2-quality-and-single-question-regeneration.md` |
 | 2026-10-28 | B2 质量收紧：Q2 数字硬校验 + 干扰项/引文/Q8 提示词规则；commits `0e61c60`、`f9d42c2` | ✅ 测试通过 |
 | 2026-10-28 | 单题重生：prompt/验收/重试 + 编辑器 ↻ + Undo；commits `e79f2ba`、`a89a0ef`、`38794a2`、`41e1b2e` | ✅ 212/212、tsc 无错 |
-| 2026-10-28 | 重新构建并部署 CF Pages | ✅ 部署 `da6b837e`（Production/main，source `247f015`），产物 `index-D0EkTrxw.js` |
+| 2026-10-28 | 修复单题重生副作用：校验可跳过答案分布轮换（`fixAnswerDistribution: false`），只改目标题；commit `13c8160` | ✅ 214/214、tsc 无错 |
+| 2026-10-28 | 重新构建并部署 CF Pages | ✅ 部署 `0ebfe3a0`（Production/main，source `13c8160`），产物 `index-CZ2OXYkh.js` |
