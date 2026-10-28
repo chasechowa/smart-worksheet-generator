@@ -65,6 +65,43 @@ describe('validateSentenceInsertion', () => {
     expect(issues.filter(i => i.severity === 'error')).toEqual([]);
   });
 
+  it('warns when a conclusion-style back-reference is placed at [1]', () => {
+    const items = [
+      makeItem({
+        sentence: 'Such shared amusement therefore does more than express individual pleasure.',
+        answer: 1,
+      }),
+      CLEAN_ITEMS[1],
+    ];
+    const issues = validateSentenceInsertion(makeData(items), ARTICLE, 'B1');
+    expect(issues.some(i => i.severity === 'warning' && /back-reference at \[1\]/i.test(i.message))).toBe(true);
+    expect(issues.some(i => i.severity === 'warning' && /conclusion marker at \[1\]/i.test(i.message))).toBe(true);
+  });
+
+  it('does not raise those warnings when the same sentence sits at [4]', () => {
+    const items = [
+      makeItem({
+        sentence: 'Such shared amusement therefore does more than express individual pleasure.',
+        answer: 4,
+      }),
+      CLEAN_ITEMS[1],
+    ];
+    const issues = validateSentenceInsertion(makeData(items), ARTICLE, 'B1');
+    expect(issues.some(i => /back-reference at \[1\]|conclusion marker at \[1\]/i.test(i.message))).toBe(false);
+  });
+
+  it('warns when a conclusion marker is placed before [4]', () => {
+    const items = [
+      makeItem({
+        sentence: 'Such shared amusement therefore does more than express individual pleasure.',
+        answer: 3,
+      }),
+      CLEAN_ITEMS[1],
+    ];
+    const issues = validateSentenceInsertion(makeData(items), ARTICLE, 'B1');
+    expect(issues.some(i => /conclusion marker at \[3\]/i.test(i.message))).toBe(true);
+  });
+
   it('errors when the paragraph is not verbatim from the article', () => {
     const items = [makeItem({ paragraph: PARAGRAPH_ONE.replace('enormous leaves', 'giant leaves') }), CLEAN_ITEMS[1]];
     const issues = validateSentenceInsertion(makeData(items), ARTICLE, 'B1');

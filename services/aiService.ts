@@ -1344,7 +1344,7 @@ function buildInsertionLevelGuidance(difficulty: Difficulty): string {
   }
 }
 
-function buildSentenceInsertionPrompt(article: string, difficulty: Difficulty, analysis?: ArticleAnalysisMap | null): string {
+export function buildSentenceInsertionPrompt(article: string, difficulty: Difficulty, analysis?: ArticleAnalysisMap | null): string {
   const profile = getDifficultyProfile(difficulty);
   return `
 ${buildSectionPromptHeader(article, difficulty, 'Sentence insertion')}
@@ -1365,6 +1365,10 @@ Hard constraints (an item is unusable if any is broken):
 - The markers must be the literal text [1] [2] [3] [4], each appearing exactly once, in ascending order.
 - sentence must NOT appear anywhere in the article, verbatim or near-verbatim.
 - Exactly ONE position must be correct; the other three must be clearly wrong.
+- The sentence must name its referent explicitly. Do not open with a bare Such/This/These/That/It/They; use the actual noun phrase (e.g. "Shared laughter therefore ...").
+- A sentence containing therefore/thus/consequently/hence is a conclusion: place it at [4], after the evidence it summarizes; it cannot be the answer at [1].
+- A sentence that could also serve as the paragraph's closing sentence is ambiguous. If it reads naturally at both the chosen position and [4], rewrite it.
+- explanation must quote the exact anchor words in the sentence before the correct marker and state why the other three positions fail.
 - The two items must not reuse the same paragraph.
 
 Difficulty guidance:

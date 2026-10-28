@@ -246,6 +246,28 @@ export function validateSentenceInsertion(
       });
     }
 
+    // A sentence that opens with a bare back-reference or a conclusion marker is
+    // only coherent when an antecedent/evidence sentence precedes it. Position
+    // [1] follows the paragraph's opening sentence and rarely supplies either.
+    if (normalizedAnswer === 1 && /^(such|this|these|that|it|they)\b/i.test(sentence)) {
+      issues.push({
+        type: 'rule',
+        section: 'insertion',
+        severity: 'warning',
+        message: `${label}: back-reference at [1] has no antecedent inside the paragraph`,
+        suggestion: 'Name the referent explicitly (e.g. "Shared laughter therefore...") or move the sentence after its anchor.',
+      });
+    }
+    if (normalizedAnswer !== 4 && /\b(therefore|thus|consequently|hence)\b/i.test(sentence)) {
+      issues.push({
+        type: 'rule',
+        section: 'insertion',
+        severity: 'warning',
+        message: `${label}: conclusion marker at [${normalizedAnswer}] — a sentence with therefore/thus usually summarizes the evidence and belongs at [4]`,
+        suggestion: 'Move the sentence to [4] or rewrite it so it does not conclude the paragraph.',
+      });
+    }
+
     // Paragraph reuse across items.
     const paragraphKey = item.paragraph.replace(/\s+/g, ' ').trim().toLowerCase();
     if (seenParagraphs.has(paragraphKey)) {
