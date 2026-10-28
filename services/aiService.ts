@@ -1,4 +1,4 @@
-import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions, MCQuestion, SyntaxDeconstructionItem, ExpansionItem, SentenceInsertionQuestion } from "../types";
+import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, IssueGroup, RefinementReport, GenerationOptions, MCQuestion, MCQuestionType, SyntaxDeconstructionItem, ExpansionItem, SentenceInsertionQuestion } from "../types";
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
@@ -10,6 +10,7 @@ import {
   B2_MC_SLOT_RULES,
   B2_REASONING_SLOTS,
   B2_Q2_TRIVIA_STEM,
+  getB2SlotNumber,
   canonicalMCQuestionType,
   canonicalCognitiveLevel,
   canonicalMCScope,
@@ -1451,7 +1452,7 @@ interface SummaryBlankTarget {
   sourceArea: string;
 }
 
-interface MCSectionResponse {
+export interface MCSectionResponse {
   multipleChoice?: MCQuestion[];
 }
 
@@ -1683,6 +1684,152 @@ function getMCViolationReport(questions: MCQuestion[], difficulty: Difficulty): 
 
 export function getInvalidMCQuestionIds(questions: MCQuestion[], difficulty: Difficulty): string[] {
   return getMCViolationReport(questions, difficulty).invalidIds;
+}
+
+// ---------------------------------------------------------------------------
+// Single-question regeneration
+// ---------------------------------------------------------------------------
+
+function getTargetSlotForQuestion(
+  existing: MCQuestion,
+  questionId: string,
+  difficulty: Difficulty,
+): { type: MCQuestionType; level: NonNullable<MCQuestion['cognitiveLevel']>; scope: NonNullable<MCQuestion['scope']> } {
+  if (difficulty === 'B2') {
+    const slot = getB2SlotNumber(questionId);
+    const rule = slot === null ? undefined : B2_MC_SLOT_RULES[slot];
+    if (rule) return { type: rule.type, level: rule.level, scope: rule.scope };
+  }
+  return {
+    type: existing.type,
+    level: existing.cognitiveLevel || 'inference',
+    scope: existing.scope || 'whole-text',
+  };
+}
+
+/** Build a prompt that rewrites exactly one MCQ while keeping its skill slot. */
+export function buildSingleMCQuestionPrompt(
+  article: string,
+  difficulty: Difficulty,
+  questionId: string,
+  questions: MCQuestion[],
+): string {
+  const existing = questions.find(question => question.id === questionId);
+  if (!existing) throw new Error(`Question ${questionId} is not part of this worksheet.`);
+
+  const slot = getB2SlotNumber(questionId) ?? (questions.indexOf(existing) + 1);
+  const base = buildMCBatchPrompt(article, difficulty, slot, slot);
+  const otherStems = questions
+    .filter(question => question.id !== questionId)
+    .map(question => `- ${question.id}: ${question.question}`)
+    .join('\n');
+  const siblingId = questionId === 'q6' ? 'q7' : questionId === 'q7' ? 'q6' : null;
+  const sibling = siblingId ? questions.find(question => question.id === siblingId) : null;
+
+  return `${base}
+
+IMPROVEMENT BRIEF — rewrite ONLY ${questionId}; do not repeat the current stem or its options.
+Current item: ${JSON.stringify(existing)}
+Existing stems to avoid (do not duplicate their content or wording):
+${otherStems}
+${sibling ? `Linked pair context (${sibling.id} must keep working with the new item): ${JSON.stringify({ question: sibling.question, options: sibling.options })}` : ''}
+Keep the assigned slot exactly (type, cognitiveLevel, scope). Make the new item more discriminating: keep the same skill, but use fresh evidence and a distractor set that punishes superficial reading.
+Return exactly one question with id "${questionId}" in the JSON schema above.`;
+}
+
+function normalizeStemForComparison(stem: unknown): string {
+  return String(stem ?? '').toLowerCase().replace(/\W+/g, ' ').trim();
+}
+
+/**
+ * Reasons why a regenerated item is not acceptable (empty array = acceptable).
+ * Deliberately stricter than full-generation checks: the user asked for a
+ * better item, so a failed candidate triggers another attempt.
+ */
+export function isRegeneratedMCQuestionAcceptable(
+  candidate: MCQuestion,
+  existing: MCQuestion,
+  difficulty: Difficulty,
+  all: MCQuestion[],
+): string[] {
+  const reasons: string[] = [];
+  if (!candidate || typeof candidate !== 'object') return ['no question was returned'];
+
+  const id = String(candidate.id ?? '').trim().toLowerCase();
+  if (id !== existing.id.toLowerCase()) reasons.push('keeps the wrong id');
+  if (!candidate.question?.trim()) reasons.push('has an empty stem');
+  if (!Array.isArray(candidate.options) || candidate.options.length !== 4 || candidate.options.some(option => !String(option ?? '').trim())) {
+    reasons.push('needs exactly four non-empty options');
+  }
+  if (!/^[A-D]$/.test(normalizeAnswerToken(candidate.answer))) reasons.push('needs an answer letter A-D');
+  if (!candidate.explanation?.trim()) reasons.push('needs an explanation');
+
+  const target = getTargetSlotForQuestion(existing, existing.id, difficulty);
+  if (
+    canonicalMCQuestionType(candidate.type) !== target.type ||
+    canonicalCognitiveLevel(candidate.cognitiveLevel) !== target.level ||
+    canonicalMCScope(candidate.scope) !== target.scope
+  ) {
+    reasons.push('does not match the assigned slot');
+  }
+
+  if (!candidate.skillTarget?.trim()) reasons.push('needs a skillTarget');
+
+  const slot = getB2SlotNumber(existing.id);
+  if (difficulty === 'B2' && slot !== null && B2_REASONING_SLOTS.has(slot)) {
+    if (!Array.isArray(candidate.evidence) || candidate.evidence.length < 2) reasons.push('needs at least two evidence references');
+    if (!Array.isArray(candidate.reasoningSteps) || candidate.reasoningSteps.length < 2) reasons.push('needs at least two reasoning steps');
+  }
+  if (slot === 8 && !/(attitude|tone|stance|viewpoint|position)/i.test(`${candidate.question} ${candidate.skillTarget || ''}`)) {
+    reasons.push('must still test author attitude or stance');
+  }
+  if (difficulty === 'B2' && slot === 2 && B2_Q2_TRIVIA_STEM.test((candidate.question || '').replace(/\bq\d+\b/gi, ' '))) {
+    reasons.push('must not test an isolated number or percentage');
+  }
+
+  const answer = normalizeAnswerToken(candidate.answer);
+  const wrongLetters = ['A', 'B', 'C', 'D'].filter(letter => letter !== answer);
+  if (!candidate.distractors || wrongLetters.some(letter => !candidate.distractors?.[letter]?.rationale?.trim())) {
+    reasons.push('needs distractor rationales for every wrong option');
+  }
+
+  if (Array.isArray(candidate.options) && candidate.options.length === 4) {
+    if (getOptionLengthViolations(candidate.options, answer).length > 0) {
+      reasons.push('option word counts must be within 2 words of the correct option');
+    }
+  }
+
+  const stem = normalizeStemForComparison(candidate.question);
+  if (stem && all.some(other => other.id !== existing.id && normalizeStemForComparison(other.question) === stem)) {
+    reasons.push('duplicates another question stem');
+  }
+
+  return reasons;
+}
+
+/** Replace one item in place, forcing the authoritative slot metadata. */
+export function applyRegeneratedMCQuestion(
+  all: MCQuestion[],
+  candidate: MCQuestion,
+  difficulty: Difficulty,
+): MCQuestion[] {
+  const existing = all.find(question => question.id === candidate.id);
+  if (!existing) throw new Error(`Question ${candidate.id} is not part of this worksheet.`);
+
+  const target = getTargetSlotForQuestion(existing, existing.id, difficulty);
+  const normalized: MCQuestion = {
+    ...candidate,
+    id: existing.id,
+    type: target.type,
+    cognitiveLevel: target.level,
+    scope: target.scope,
+    answer: normalizeAnswerToken(candidate.answer),
+  };
+  if (existing.id === 'q6' || existing.id === 'q7') {
+    normalized.evidencePairLink = { claimQuestionId: 'q6', evidenceQuestionId: 'q7' };
+  }
+
+  return all.map(question => (question.id === existing.id ? normalized : question));
 }
 
 /**
