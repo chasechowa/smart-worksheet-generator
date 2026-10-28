@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { validateMC, countOptionWords, getOptionWordCounts, getOptionLengthViolations, isOptionLengthBalanced } from '../mcValidator';
 import type { WorksheetData, MCQuestion } from '../../types';
 
@@ -87,6 +87,31 @@ describe('validateMC', () => {
       expect(count).toBeGreaterThanOrEqual(2);
       expect(count).toBeLessThanOrEqual(3);
     });
+  });
+
+  it('scatters which questions move when rebalancing the same raw key', () => {
+    const opts = ['OptA', 'OptB', 'OptC', 'OptD'];
+    const raw = ['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'D', 'D'];
+    const run = (values: number[]) => {
+      let i = 0;
+      const spy = vi.spyOn(Math, 'random').mockImplementation(() => values[i++ % values.length]);
+      try {
+        const { fixedData } = validateMC(createMCData(raw.map(answer => makeQuestion('Inference', answer, opts))), 'B1', { randomizeAnswerDistribution: true });
+        return fixedData.multipleChoice.map(question => question.answer).join('');
+      } finally {
+        spy.mockRestore();
+      }
+    };
+
+    const first = run([0.1, 0.7, 0.3, 0.9, 0.2, 0.6, 0.4, 0.8]);
+    const second = run([0.9, 0.1, 0.8, 0.2, 0.7, 0.3, 0.6, 0.4]);
+
+    expect(first).not.toBe(second);
+    for (const key of [first, second]) {
+      const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
+      for (const letter of key) counts[letter]++;
+      Object.values(counts).forEach(count => expect(count).toBeLessThanOrEqual(3));
+    }
   });
 
   it('remaps distractor metadata when rotating options', () => {

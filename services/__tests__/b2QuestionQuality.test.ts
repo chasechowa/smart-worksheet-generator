@@ -80,6 +80,11 @@ describe('B2 batch prompt quality rules', () => {
     expect(prompt).toContain('Never use absolute or overreaching wording');
     expect(prompt).toContain('generic "What is the author\'s attitude?" stem');
   });
+
+  it('requires varied correct-answer positions', () => {
+    const prompt = buildMCBatchPrompt('Article text', 'B2', 1, 5);
+    expect(prompt).toContain('Vary the position of the correct answer');
+  });
 });
 
 describe('option-length enforcement at generation time', () => {

@@ -497,11 +497,19 @@ function normalizeEvidencePairLinks(mc: MCQuestion[]): MCQuestion[] {
   );
 }
 
+function shuffleInPlace<T>(items: T[]): void {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+}
+
 /**
  * Fix uneven answer distribution by rotating options to shift
- * over-represented letters toward under-represented ones.
+ * over-represented letters toward under-represented ones. The bucket order is
+ * shuffled so the same raw key does not always produce the same visible key.
  */
-function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
+function fixAnswerDistribution(mc: MCQuestion[], randomize = false): MCQuestion[] {
   const dist: Record<string, number[]> = { A: [], B: [], C: [], D: [] };
 
   mc.forEach((q, i) => {
@@ -509,6 +517,8 @@ function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
     const letter = result?.letter;
     if (letter && dist[letter]) dist[letter].push(i);
   });
+
+  if (randomize) Object.values(dist).forEach(shuffleInPlace);
 
   const result = mc.map(q => ({ ...q }));
 
@@ -519,6 +529,10 @@ function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
 
     if (over.length === 0 || under.length === 0) break;
 
+    if (randomize) {
+      shuffleInPlace(over);
+      shuffleInPlace(under);
+    }
     const fromLetter = over[0];
     const toLetter = under[0];
     const qIdx = dist[fromLetter]?.pop();
@@ -536,6 +550,10 @@ function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
     const least = entries.filter(([_, idxs]) => idxs.length < 3).map(([l]) => l);
     if (least.length === 0) break;
 
+    if (randomize) {
+      shuffleInPlace(over);
+      shuffleInPlace(least);
+    }
     const fromLetter = over[0];
     const toLetter = least[0];
     const qIdx = dist[fromLetter]?.pop();
@@ -548,12 +566,51 @@ function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
   return result;
 }
 
+/**
+ * Reassign a already-balanced key to random positions without changing how many
+ * times each letter is correct. Only used for whole-worksheet generation.
+ */
+function scatterAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
+  const letters = ['A', 'B', 'C', 'D'];
+  const counts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
+  const validIndices: number[] = [];
+
+  mc.forEach((question, index) => {
+    const letter = normalizeAnswerLetter(question)?.letter;
+    if (!letter) return;
+    counts[letter]++;
+    validIndices.push(index);
+  });
+
+  const targets: string[] = [];
+  letters.forEach(letter => {
+    for (let i = 0; i < counts[letter]; i++) targets.push(letter);
+  });
+  shuffleInPlace(targets);
+
+  const result = mc.map(question => ({ ...question }));
+  validIndices.forEach((questionIndex, targetIndex) => {
+    const current = normalizeAnswerLetter(result[questionIndex])?.letter;
+    const target = targets[targetIndex];
+    if (current && target && current !== target) {
+      result[questionIndex] = rotateOptions(result[questionIndex], current, target);
+    }
+  });
+
+  return result;
+}
+
 export interface MCValidationOptions {
   /**
    * Single-question regeneration passes false: rotating options to balance the
    * answer spread would silently rewrite a different question.
    */
   fixAnswerDistribution?: boolean;
+  /**
+   * Whole-worksheet generation passes true: scatter which questions rotate so
+   * two runs with the same raw model output do not produce the same answer key.
+   */
+  randomizeAnswerDistribution?: boolean;
 }
 
 export function validateMC(data: WorksheetData, difficulty?: Difficulty, options: MCValidationOptions = {}): { issues: ValidationIssue[]; fixedData: WorksheetData } {
@@ -653,7 +710,12 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty, options
 
   // Step 2: auto-fix answer distribution (rotate options) unless the caller
   // wants to preserve the current items (single-question regeneration).
-  const distributedMC = options.fixAnswerDistribution === false ? fixedMC : fixAnswerDistribution(fixedMC);
+  let distributedMC = options.fixAnswerDistribution === false
+    ? fixedMC
+    : fixAnswerDistribution(fixedMC, options.randomizeAnswerDistribution === true);
+  if (options.fixAnswerDistribution !== false && options.randomizeAnswerDistribution === true) {
+    distributedMC = scatterAnswerDistribution(distributedMC);
+  }
   fixedMC = distributedMC.map((q, i) => {
     const sanitized = sanitizeDistractors(q);
     if (sanitized.removedLetters.length > 0) {

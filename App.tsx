@@ -932,7 +932,7 @@ export default function App() {
       // not let preview rendering crash the page.
       const normalizedRawData = normalizeWorksheetData(rawData);
       const validation = scopeValidationResult(
-        validateWorksheet(normalizedRawData, article, settings.difficulty),
+        validateWorksheet(normalizedRawData, article, settings.difficulty, { randomizeAnswerDistribution: true }),
         generationOptions,
       );
       const errors = validation.issues.filter(i => i.severity === 'error');
@@ -1008,7 +1008,7 @@ export default function App() {
       );
       const normalizedRawData = normalizeWorksheetData(rawData);
       const validation = scopeValidationResult(
-        validateWorksheet(normalizedRawData, article, settings.difficulty),
+        validateWorksheet(normalizedRawData, article, settings.difficulty, { randomizeAnswerDistribution: true }),
         generationOptions,
       );
       setValidationResult(validation);

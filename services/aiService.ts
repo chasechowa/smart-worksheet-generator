@@ -1209,6 +1209,7 @@ Quality rules:
 - Q8: do not use a generic "What is the author's attitude?" stem; quote or name at least one specific wording signal and ask what it reveals about the author's stance.
 - For B2 inference/synthesis items, include evidence[] with at least two short references and reasoningSteps[] with at least two real reasoning steps.
 - For every B2 item include skillTarget and scope (single-paragraph, cross-paragraph, or whole-text).
+- Vary the position of the correct answer across the ten items: rotate the correct option so the key is not a predictable pattern, and never place the correct answer in the same position more than three times.
 - A B2 item labelled inference must not be answerable by locating one sentence or matching keywords.
 - Q8 must explicitly assess author attitude/tone/stance and cite at least two wording signals.
 - options must be an array of exactly four raw option texts. No A/B/C/D prefixes.
@@ -1232,7 +1233,7 @@ JSON schema:
       "cognitiveLevel": "retrieval",
       "question": "...",
       "options": ["...", "...", "...", "..."],
-      "answer": "A",
+      "answer": "B",
       "explanation": "...",
       "skillTarget": "cross-paragraph inference",
       "scope": "cross-paragraph",
