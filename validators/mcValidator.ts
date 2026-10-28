@@ -199,6 +199,12 @@ export const B2_MC_SLOT_RULES: Record<
 
 export const B2_REASONING_SLOTS = new Set([1, 3, 4, 5, 6, 7, 8, 10]);
 
+/**
+ * B2 Q2 must test a central stated fact supporting the argument, never an
+ * isolated number or statistic. Shared with generation so the item is retried.
+ */
+export const B2_Q2_TRIVIA_STEM = /\b(proportion|percentage|percent|how many|number of)\b|\d/i;
+
 export function getB2SlotNumber(id: unknown): number | null {
   const match = /^q(\d+)$/i.exec(String(id ?? '').trim());
   return match ? Number(match[1]) : null;
@@ -867,6 +873,12 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     for (const question of fixedMC) {
       const slot = getB2SlotNumber(question.id);
       if (slot === null) continue;
+      if (slot === 2 && B2_Q2_TRIVIA_STEM.test((question.question || '').replace(/\bq\d+\b/gi, ' '))) {
+        issues.push({
+          type: 'rule', section: 'mc', severity: 'warning',
+          message: 'Q2: tests an isolated number/percentage; B2 expects a central stated fact that supports the argument',
+        });
+      }
       if (!question.skillTarget?.trim()) {
         issues.push({ type: 'rule', section: 'mc', severity: 'error', message: `${question.id}: Missing B2 skillTarget` });
       }

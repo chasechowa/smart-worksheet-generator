@@ -9,6 +9,7 @@ import {
   normalizeAnswerToken,
   B2_MC_SLOT_RULES,
   B2_REASONING_SLOTS,
+  B2_Q2_TRIVIA_STEM,
   canonicalMCQuestionType,
   canonicalCognitiveLevel,
   canonicalMCScope,
@@ -335,7 +336,7 @@ function buildLevelMCBlueprint(difficulty: Difficulty): string {
     return `
     B2 QUESTION BLUEPRINT (EXACT - FOLLOW THESE 10 SLOTS):
     - Q1 Main Idea, cognitiveLevel: synthesis. Test the central argument across the whole article.
-    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for the ONE central stated fact that best supports the argument, never trivia.
+    - Q2 Literal Comprehension, cognitiveLevel: retrieval. Ask for the ONE central stated fact that best supports the argument — never a statistic, percentage, date, name, or isolated number.
     - Q3 Inference, cognitiveLevel: inference. Test hidden meaning within one paragraph; the answer must not be stated verbatim.
     - Q4 Inference, cognitiveLevel: inference. Require connecting evidence from two different parts of the article.
     - Q5 Inference, cognitiveLevel: synthesis. Test an unstated assumption, limitation, or likely consequence.
@@ -1580,6 +1581,7 @@ export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
     }
     if (!question.question?.trim() || question.options?.length !== 4 || !/^[A-D]$/.test(question.answer || '') || !question.explanation?.trim()) invalid.add(id);
     if (slot !== 2 && /^according to\b/i.test(question.question.trim())) invalid.add(id);
+    if (slot === 2 && B2_Q2_TRIVIA_STEM.test((question.question || '').replace(/\bq\d+\b/gi, ' '))) invalid.add(id);
     if (B2_REASONING_SLOTS.has(slot)) {
       if (!Array.isArray(question.evidence) || question.evidence.length < 2) invalid.add(id);
       if (!Array.isArray(question.reasoningSteps) || question.reasoningSteps.length < 2) invalid.add(id);

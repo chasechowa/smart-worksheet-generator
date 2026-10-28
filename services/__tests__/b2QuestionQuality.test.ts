@@ -59,6 +59,18 @@ describe('getInvalidB2QuestionIds', () => {
     questions[2].question = 'According to the article, what happened?';
     expect(getInvalidB2QuestionIds(questions)).toContain('q3');
   });
+
+  it('rejects a percentage/trivia Q2 in B2', () => {
+    const questions = makeValidQuestions();
+    questions[1].question = 'According to Provine, what proportion of laughter is social?';
+    expect(getInvalidB2QuestionIds(questions)).toContain('q2');
+  });
+
+  it('accepts a conceptual Q2', () => {
+    const questions = makeValidQuestions();
+    questions[1].question = 'Which stated finding most directly supports the article’s central claim?';
+    expect(getInvalidB2QuestionIds(questions)).not.toContain('q2');
+  });
 });
 
 describe('option-length enforcement at generation time', () => {
