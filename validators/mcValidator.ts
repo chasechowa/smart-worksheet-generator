@@ -1,4 +1,4 @@
-import type { WorksheetData, ValidationIssue, MCQuestion, MCQuestionType, DistractorPattern, Difficulty } from '../types';
+import type { WorksheetData, ValidationIssue, MCQuestion, MCQuestionType, CognitiveLevel, DistractorPattern, Difficulty } from '../types';
 
 const EXPECTED_MC_COUNT = 10;
 
@@ -107,6 +107,129 @@ const TYPE_MIGRATION: Record<string, MCQuestionType> = {
   // New types that map to self:
   // 'Main Idea', 'Literal Comprehension', 'Vocabulary in Context' stay the same
 };
+
+// ---------------------------------------------------------------------------
+// Enum canonicalization — single source of truth for slot metadata
+// ---------------------------------------------------------------------------
+//
+// Models regularly vary casing and spacing ("Inference", "Evidence Reasoning ",
+// "Structure/Function/Synthesis", "Whole Text"). Generation-side checks already
+// accepted those variants, but validateMC compared by exact string, so a
+// correctly generated B2 worksheet could still fail validation forever.
+
+function normalizeEnumKey(value: unknown): string {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const TYPE_BY_NORMALIZED_KEY: Record<string, MCQuestionType> = Object.fromEntries(
+  ALLOWED_TYPES.map(type => [normalizeEnumKey(type), type]),
+) as Record<string, MCQuestionType>;
+
+/** Canonical challenge type, tolerating case/spacing and legacy aliases. */
+export function canonicalMCQuestionType(value: unknown): MCQuestionType | null {
+  const key = normalizeEnumKey(value);
+  if (!key) return null;
+  const direct = TYPE_BY_NORMALIZED_KEY[key];
+  if (direct) return direct;
+  for (const [legacy, target] of Object.entries(TYPE_MIGRATION)) {
+    if (normalizeEnumKey(legacy) === key) return target;
+  }
+  return null;
+}
+
+const COGNITIVE_LEVEL_VALUES: CognitiveLevel[] = ['retrieval', 'inference', 'synthesis'];
+
+const COGNITIVE_LEVEL_ALIASES: Record<string, CognitiveLevel> = {
+  inferential: 'inference',
+  literal: 'retrieval',
+};
+
+/** Canonical cognitive level ("Inference" → "inference"). */
+export function canonicalCognitiveLevel(value: unknown): CognitiveLevel | null {
+  const key = normalizeEnumKey(value);
+  if (!key) return null;
+  const direct = COGNITIVE_LEVEL_VALUES.find(level => level === key);
+  return direct ?? COGNITIVE_LEVEL_ALIASES[key] ?? null;
+}
+
+const SCOPE_ALIASES: Record<string, NonNullable<MCQuestion['scope']>> = {
+  'single paragraph': 'single-paragraph',
+  'one paragraph': 'single-paragraph',
+  'cross paragraph': 'cross-paragraph',
+  'multi paragraph': 'cross-paragraph',
+  'multiple paragraphs': 'cross-paragraph',
+  'two paragraphs': 'cross-paragraph',
+  'whole text': 'whole-text',
+  'whole passage': 'whole-text',
+  'whole article': 'whole-text',
+  'entire text': 'whole-text',
+  'entire passage': 'whole-text',
+};
+
+/** Canonical reading scope ("Whole Text" → "whole-text"). */
+export function canonicalMCScope(value: unknown): NonNullable<MCQuestion['scope']> | null {
+  const key = normalizeEnumKey(value);
+  if (!key) return null;
+  return SCOPE_ALIASES[key] ?? null;
+}
+
+/**
+ * Fixed B2 blueprint, shared by the prompt/retry logic (aiService) and the
+ * validator. Keep this as the ONLY definition so the two cannot drift.
+ */
+export const B2_MC_SLOT_RULES: Record<
+  number,
+  { type: MCQuestionType; level: CognitiveLevel; scope: NonNullable<MCQuestion['scope']> }
+> = {
+  1: { type: 'Main Idea', level: 'synthesis', scope: 'whole-text' },
+  2: { type: 'Literal Comprehension', level: 'retrieval', scope: 'single-paragraph' },
+  3: { type: 'Inference', level: 'inference', scope: 'single-paragraph' },
+  4: { type: 'Inference', level: 'inference', scope: 'cross-paragraph' },
+  5: { type: 'Inference', level: 'synthesis', scope: 'whole-text' },
+  6: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
+  7: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
+  8: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
+  9: { type: 'Vocabulary in Context', level: 'inference', scope: 'single-paragraph' },
+  10: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
+};
+
+export const B2_REASONING_SLOTS = new Set([1, 3, 4, 5, 6, 7, 8, 10]);
+
+export function getB2SlotNumber(id: unknown): number | null {
+  const match = /^q(\d+)$/i.exec(String(id ?? '').trim());
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * The fixed B2 blueprint decides what each slot assesses; item metadata is the
+ * model's self-report and must not block a worksheet. Align the metadata to the
+ * blueprint and surface any real disagreement as a warning.
+ */
+function alignB2SkillSlots(questions: MCQuestion[], issues: ValidationIssue[]): MCQuestion[] {
+  return questions.map(question => {
+    const slot = getB2SlotNumber(question.id);
+    const rule = slot === null ? undefined : B2_MC_SLOT_RULES[slot];
+    if (!rule) return question;
+
+    const type = canonicalMCQuestionType(question.type) ?? question.type;
+    const level = question.cognitiveLevel;
+    const scope = question.scope;
+    if (type === rule.type && level === rule.level && scope === rule.scope) {
+      return { ...question, type: rule.type, cognitiveLevel: rule.level, scope: rule.scope };
+    }
+
+    issues.push({
+      type: 'rule', section: 'mc', severity: 'warning',
+      message: `${question.id}: skill slot metadata auto-aligned to the fixed B2 blueprint`,
+      suggestion: `Was ${type} / ${level ?? 'missing'} / ${scope ?? 'missing'}; now ${rule.type} / ${rule.level} / ${rule.scope}.`,
+    });
+    return { ...question, type: rule.type, cognitiveLevel: rule.level, scope: rule.scope };
+  });
+}
 
 export function stripPrefix(text: string): string {
   return String(text ?? '').replace(/^[A-Da-d][.)\]]\s*/, '').replace(/^\d+[.)\]]\s*/, '').trim();
@@ -470,17 +593,30 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
       }
     }
 
-    // Auto-fix unknown type: try migration map first, then default
-    if (!ALLOWED_TYPES.includes(q.type as any)) {
-      const migrated = TYPE_MIGRATION[q.type];
-      fixedQ.type = migrated || 'Literal Comprehension';
-      if (migrated) {
+    // Canonicalize type: tolerate case/spacing first, then legacy migration.
+    // Pure formatting differences stay silent; real renames keep the warning.
+    const canonicalType = canonicalMCQuestionType(q.type);
+    if (!canonicalType) {
+      fixedQ.type = 'Literal Comprehension';
+    } else {
+      if (
+        canonicalType !== q.type &&
+        normalizeEnumKey(canonicalType) !== normalizeEnumKey(q.type)
+      ) {
         issues.push({
           type: 'rule', section: 'mc', severity: 'warning',
-          message: `Q${i + 1}: Type "${q.type}" auto-migrated to "${migrated}"`,
+          message: `Q${i + 1}: Type "${q.type}" auto-migrated to "${canonicalType}"`,
         });
       }
+      fixedQ.type = canonicalType;
     }
+
+    // Same tolerance for cognitiveLevel/scope, so a capitalized model response
+    // is not reported as a B2 slot violation.
+    const canonicalLevel = canonicalCognitiveLevel(q.cognitiveLevel);
+    if (canonicalLevel) fixedQ.cognitiveLevel = canonicalLevel;
+    const canonicalScope = canonicalMCScope(q.scope);
+    if (canonicalScope) fixedQ.scope = canonicalScope;
 
     // Auto-fill missing explanation
     if (!q.explanation || q.explanation.trim().length === 0) {
@@ -516,6 +652,12 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     return sanitized.question;
   });
   fixedMC = normalizeEvidencePairLinks(fixedMC);
+
+  // The B2 blueprint is authoritative: align slot metadata before distribution
+  // counts so one capitalized field can never fail an otherwise valid set.
+  if (difficulty === 'B2') {
+    fixedMC = alignB2SkillSlots(fixedMC, issues);
+  }
 
   // Rebuild keys after rotation — all answers are now normalized letters
   const newKeys: Record<string, string> = {};
@@ -720,34 +862,18 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
   }
 
   if (difficulty === 'B2') {
-    const expectedSlots: Record<string, { type: MCQuestionType; level: string; scope: string }> = {
-      q1: { type: 'Main Idea', level: 'synthesis', scope: 'whole-text' },
-      q2: { type: 'Literal Comprehension', level: 'retrieval', scope: 'single-paragraph' },
-      q3: { type: 'Inference', level: 'inference', scope: 'single-paragraph' },
-      q4: { type: 'Inference', level: 'inference', scope: 'cross-paragraph' },
-      q5: { type: 'Inference', level: 'synthesis', scope: 'whole-text' },
-      q6: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
-      q7: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
-      q8: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
-      q9: { type: 'Vocabulary in Context', level: 'inference', scope: 'single-paragraph' },
-      q10: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
-    };
-    const reasoningIds = new Set(['q1', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q10']);
-
+    // Slot metadata was already aligned to B2_MC_SLOT_RULES above; only
+    // substantive content requirements remain as hard errors.
     for (const question of fixedMC) {
-      const expected = expectedSlots[question.id];
-      if (!expected) continue;
-      if (question.type !== expected.type || question.cognitiveLevel !== expected.level || question.scope !== expected.scope) {
-        issues.push({
-          type: 'rule', section: 'mc', severity: 'error',
-          message: `${question.id}: Does not match the fixed B2 skill slot`,
-          suggestion: `Expected ${expected.type} / ${expected.level} / ${expected.scope}`,
-        });
-      }
+      const slot = getB2SlotNumber(question.id);
+      if (slot === null) continue;
       if (!question.skillTarget?.trim()) {
         issues.push({ type: 'rule', section: 'mc', severity: 'error', message: `${question.id}: Missing B2 skillTarget` });
       }
-      if (reasoningIds.has(question.id) && (!question.evidence || question.evidence.length < 2 || !question.reasoningSteps || question.reasoningSteps.length < 2)) {
+      if (
+        B2_REASONING_SLOTS.has(slot) &&
+        (!question.evidence || question.evidence.length < 2 || !question.reasoningSteps || question.reasoningSteps.length < 2)
+      ) {
         issues.push({
           type: 'rule', section: 'mc', severity: 'error',
           message: `${question.id}: B2 inference/synthesis requires at least 2 evidence references and 2 reasoning steps`,
@@ -755,7 +881,7 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
       }
     }
 
-    const attitude = fixedMC.find(question => question.id === 'q8');
+    const attitude = fixedMC.find(question => getB2SlotNumber(question.id) === 8);
     if (!attitude || !/(attitude|tone|stance|viewpoint|position)/i.test(`${attitude.question} ${attitude.skillTarget || ''}`)) {
       issues.push({ type: 'rule', section: 'mc', severity: 'error', message: 'Q8 must explicitly test author attitude, tone, or stance' });
     }

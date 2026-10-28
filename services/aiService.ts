@@ -2,7 +2,17 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
-import { OPTION_LENGTH_TOLERANCE_WORDS, getOptionLengthViolations, stripPrefix, normalizeAnswerToken } from "../validators/mcValidator";
+import {
+  OPTION_LENGTH_TOLERANCE_WORDS,
+  getOptionLengthViolations,
+  stripPrefix,
+  normalizeAnswerToken,
+  B2_MC_SLOT_RULES,
+  B2_REASONING_SLOTS,
+  canonicalMCQuestionType,
+  canonicalCognitiveLevel,
+  canonicalMCScope,
+} from "../validators/mcValidator";
 
 // CF Worker proxy URLs — tried in order. The Worker buffers the upstream
 // response, so the browser timeout must allow a full worksheet section to be
@@ -1543,19 +1553,6 @@ async function generateArticleAnalysisMap(
   throw new Error('Could not build a reliable article evidence map. Please retry generation.');
 }
 
-const B2_MC_SLOT_RULES: Record<number, { type: MCQuestion['type']; level: NonNullable<MCQuestion['cognitiveLevel']>; scope: NonNullable<MCQuestion['scope']> }> = {
-  1: { type: 'Main Idea', level: 'synthesis', scope: 'whole-text' },
-  2: { type: 'Literal Comprehension', level: 'retrieval', scope: 'single-paragraph' },
-  3: { type: 'Inference', level: 'inference', scope: 'single-paragraph' },
-  4: { type: 'Inference', level: 'inference', scope: 'cross-paragraph' },
-  5: { type: 'Inference', level: 'synthesis', scope: 'whole-text' },
-  6: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
-  7: { type: 'Evidence Reasoning', level: 'inference', scope: 'cross-paragraph' },
-  8: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
-  9: { type: 'Vocabulary in Context', level: 'inference', scope: 'single-paragraph' },
-  10: { type: 'Structure / Function / Synthesis', level: 'synthesis', scope: 'whole-text' },
-};
-
 export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
   if (!Array.isArray(questions) || questions.length !== 10) {
     return Array.from({ length: 10 }, (_, index) => `q${index + 1}`);
@@ -1563,11 +1560,6 @@ export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
 
   const invalid = new Set<string>();
   const byId = new Map(questions.map(question => [question.id, question]));
-  const reasoningSlots = new Set([1, 3, 4, 5, 6, 7, 8, 10]);
-  // Models vary casing/spacing on enum fields ("Inference " vs "inference"),
-  // so compare tokens leniently instead of by exact string.
-  const sameToken = (a?: string, b?: string) =>
-    String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 
   for (let slot = 1; slot <= 10; slot++) {
     const id = `q${slot}`;
@@ -1577,10 +1569,18 @@ export function getInvalidB2QuestionIds(questions: MCQuestion[]): string[] {
       invalid.add(id);
       continue;
     }
-    if (!sameToken(question.type, rule.type) || !sameToken(question.cognitiveLevel, rule.level) || !sameToken(question.scope, rule.scope)) invalid.add(id);
+    // Canonicalize the same way validateMC does, otherwise a capitalized
+    // "Inference" passes here but blocks the worksheet in the UI forever.
+    if (
+      canonicalMCQuestionType(question.type) !== rule.type ||
+      canonicalCognitiveLevel(question.cognitiveLevel) !== rule.level ||
+      canonicalMCScope(question.scope) !== rule.scope
+    ) {
+      invalid.add(id);
+    }
     if (!question.question?.trim() || question.options?.length !== 4 || !/^[A-D]$/.test(question.answer || '') || !question.explanation?.trim()) invalid.add(id);
     if (slot !== 2 && /^according to\b/i.test(question.question.trim())) invalid.add(id);
-    if (reasoningSlots.has(slot)) {
+    if (B2_REASONING_SLOTS.has(slot)) {
       if (!Array.isArray(question.evidence) || question.evidence.length < 2) invalid.add(id);
       if (!Array.isArray(question.reasoningSteps) || question.reasoningSteps.length < 2) invalid.add(id);
     }
