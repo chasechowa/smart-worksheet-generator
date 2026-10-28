@@ -86,6 +86,13 @@ describe('isRegeneratedMCQuestionAcceptable', () => {
     const reasons = isRegeneratedMCQuestionAcceptable(candidate, questions[6], 'B2', questions);
     expect(reasons.some(reason => reason.includes('slot'))).toBe(true);
   });
+
+  it('rejects a replacement that repeats the current stem', () => {
+    const questions = makeB2Questions();
+    const candidate = { ...questions[6], question: questions[6].question };
+    const reasons = isRegeneratedMCQuestionAcceptable(candidate, questions[6], 'B2', questions);
+    expect(reasons).toContain('repeats the current stem');
+  });
 });
 
 describe('applyRegeneratedMCQuestion', () => {

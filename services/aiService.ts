@@ -1796,6 +1796,9 @@ export function isRegeneratedMCQuestionAcceptable(
   }
 
   const stem = normalizeStemForComparison(candidate.question);
+  if (stem && stem === normalizeStemForComparison(existing.question)) {
+    reasons.push('repeats the current stem');
+  }
   if (stem && all.some(other => other.id !== existing.id && normalizeStemForComparison(other.question) === stem)) {
     reasons.push('duplicates another question stem');
   }
