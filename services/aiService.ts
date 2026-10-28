@@ -1833,6 +1833,49 @@ export function applyRegeneratedMCQuestion(
 }
 
 /**
+ * Rewrite one MCQ in place, keeping its id and skill slot. Retries up to three
+ * times; throws with the remaining reasons instead of returning a worse item.
+ */
+export async function regenerateMCQuestion(
+  article: string,
+  difficulty: Difficulty,
+  questionId: string,
+  questions: MCQuestion[],
+  onProgress?: (message: string) => void,
+  generate?: (prompt: string) => Promise<{ multipleChoice?: MCQuestion[] }>,
+): Promise<MCQuestion> {
+  const existing = questions.find(question => question.id === questionId);
+  if (!existing) throw new Error(`Question ${questionId} is not part of this worksheet.`);
+
+  const generateFn = generate ?? ((prompt: string) => {
+    const config = getActiveConfig();
+    if (!config?.apiKey) throw new Error('No active AI provider configured. Please set up your API key in Settings.');
+    return generateJSONSection<MCSectionResponse>(`Regenerating ${questionId}`, prompt, config, onProgress);
+  });
+
+  const basePrompt = buildSingleMCQuestionPrompt(article, difficulty, questionId, questions);
+  let correction = '';
+  let lastReasons: string[] = ['no usable question was returned'];
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    onProgress?.(`Regenerating ${questionId} (attempt ${attempt}/3)…`);
+    const response = await generateFn(`${basePrompt}${correction}`);
+    const raw = Array.isArray(response?.multipleChoice) ? response.multipleChoice[0] : null;
+    if (raw) {
+      const candidate = { ...raw, id: questionId };
+      const reasons = isRegeneratedMCQuestionAcceptable(candidate, existing, difficulty, questions);
+      if (reasons.length === 0) return candidate;
+      lastReasons = reasons;
+    } else {
+      lastReasons = ['no usable question was returned'];
+    }
+    correction = `\n\nRETRY CORRECTION: the previous replacement failed validation: ${lastReasons.join('; ')}. Fix every listed problem and return the complete replacement.`;
+  }
+
+  throw new Error(`Could not regenerate ${questionId}: ${lastReasons.join('; ')}`);
+}
+
+/**
  * Merge a regenerated 5-question half back in, keyed by id. Regenerated items
  * win; omitted ids keep their previous version; extras are discarded. Without
  * this, a partial retry response could silently shrink the worksheet.

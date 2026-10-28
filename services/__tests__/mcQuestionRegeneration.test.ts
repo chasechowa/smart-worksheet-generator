@@ -4,6 +4,7 @@ import {
   buildSingleMCQuestionPrompt,
   isRegeneratedMCQuestionAcceptable,
   applyRegeneratedMCQuestion,
+  regenerateMCQuestion,
 } from '../aiService';
 
 const SLOTS: Array<[MCQuestionType, CognitiveLevel, NonNullable<MCQuestion['scope']>]> = [
@@ -101,5 +102,30 @@ describe('applyRegeneratedMCQuestion', () => {
     expect(next[6].evidencePairLink).toEqual({ claimQuestionId: 'q6', evidenceQuestionId: 'q7' });
     expect(next[6].question).toBe('A fresh evidence question?');
     expect(next).toHaveLength(10);
+  });
+});
+
+describe('regenerateMCQuestion', () => {
+  it('retries until the candidate passes', async () => {
+    const questions = makeB2Questions();
+    const bad = { ...questions[6], id: 'q7', evidence: ['only one'], question: 'A weak replacement?' };
+    const good = { ...questions[6], id: 'q7', question: 'Which quotation best proves the writer’s claim?' };
+    const calls: string[] = [];
+    const fake = async (prompt: string) => {
+      calls.push(prompt);
+      return { multipleChoice: [calls.length === 1 ? bad : good] };
+    };
+
+    const result = await regenerateMCQuestion('Article', 'B2', 'q7', questions, undefined, fake);
+    expect(result.question).toBe(good.question);
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toContain('RETRY CORRECTION');
+  });
+
+  it('throws after three failed attempts without changing the worksheet', async () => {
+    const questions = makeB2Questions();
+    const fake = async () => ({ multipleChoice: [] });
+    await expect(regenerateMCQuestion('Article', 'B2', 'q7', questions, undefined, fake))
+      .rejects.toThrow(/Could not regenerate q7/);
   });
 });
