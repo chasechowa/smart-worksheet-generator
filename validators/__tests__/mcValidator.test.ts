@@ -44,8 +44,7 @@ describe('validateMC', () => {
     expect(issues.filter(i => i.severity === 'error').length).toBe(0);
   });
 
-  it('converts legacy option-text answers to letters with warning', () => {
-    const questions = Array.from({ length: 10 }, (_, i) =>
+  it('converts legacy option-text answers to letters with warning', () => {    const questions = Array.from({ length: 10 }, (_, i) =>
       makeQuestion(i < 2 ? 'Evidence Reasoning' : 'Literal Comprehension', 'Gamma', ['Alpha', 'Beta', 'Gamma', 'Delta'])
     );
     const { fixedData, issues } = validateMC(createMCData(questions));
@@ -339,5 +338,22 @@ describe('option word-count helpers', () => {
     expect(violations).toEqual([
       { index: 1, letter: 'B', words: 5, correctLetter: 'A', correctWords: 1, difference: 4 },
     ]);
+  });
+});
+
+describe('answer distribution rotation', () => {
+  function makeSkewedQuestions(): MCQuestion[] {
+    const answers = ['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'D', 'D'];
+    return answers.map((answer, index) => ({ ...makeQuestion('Inference', answer), id: `q${index + 1}` }));
+  }
+
+  it('balances a skewed set by default', () => {
+    const { fixedData } = validateMC(createMCData(makeSkewedQuestions()), 'B1');
+    expect(fixedData.multipleChoice.map(question => question.answer)).not.toEqual(['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'D', 'D']);
+  });
+
+  it('keeps every answer untouched when rotation is disabled', () => {
+    const { fixedData } = validateMC(createMCData(makeSkewedQuestions()), 'B1', { fixAnswerDistribution: false });
+    expect(fixedData.multipleChoice.map(question => question.answer)).toEqual(['A', 'A', 'A', 'A', 'B', 'B', 'C', 'C', 'D', 'D']);
   });
 });

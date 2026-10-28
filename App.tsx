@@ -1058,7 +1058,7 @@ export default function App() {
         keys: { ...data.keys, mc: { ...data.keys.mc, [questionId]: regenerated.answer } },
       };
       const validation = scopeValidationResult(
-        validateWorksheet(nextData, article, settings.difficulty),
+        validateWorksheet(nextData, article, settings.difficulty, { fixAnswerDistribution: false }),
         generationOptions,
       );
       setData(validation.data);

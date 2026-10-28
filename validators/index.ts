@@ -1,13 +1,13 @@
 import type { WorksheetData, ValidationIssue, Difficulty } from '../types';
 import { validateSummary } from './summaryValidator';
-import { validateMC } from './mcValidator';
+import { validateMC, type MCValidationOptions } from './mcValidator';
 import { validateSyntax } from './syntaxValidator';
 import { validateSentenceInsertion } from './sentenceInsertionValidator';
 import { validateWriting } from './writingValidator';
 import { validateKeys } from './keysValidator';
 import { validateC1Boundaries } from './c1Validator';
 
-export function validateAll(data: WorksheetData, articleText: string, difficulty?: Difficulty): { issues: ValidationIssue[]; fixedData: WorksheetData } {
+export function validateAll(data: WorksheetData, articleText: string, difficulty?: Difficulty, options?: MCValidationOptions): { issues: ValidationIssue[]; fixedData: WorksheetData } {
   const issues: ValidationIssue[] = [];
 
   // Global checks
@@ -20,7 +20,7 @@ export function validateAll(data: WorksheetData, articleText: string, difficulty
 
   // Section validators — each mutates data as needed to auto-fix warnings
   issues.push(...validateSummary(data, articleText));
-  const mcResult = validateMC(data, difficulty);
+  const mcResult = validateMC(data, difficulty, options);
   issues.push(...mcResult.issues);
   let fixedData = mcResult.fixedData;
   if (difficulty === 'C1') {

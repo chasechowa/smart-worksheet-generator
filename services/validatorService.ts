@@ -1,8 +1,9 @@
 import type { WorksheetData, ValidationResult, Difficulty } from '../types';
 import { validateAll } from '../validators';
+import type { MCValidationOptions } from '../validators/mcValidator';
 
-export function validateWorksheet(data: WorksheetData, articleText: string, difficulty?: Difficulty): ValidationResult {
-  const { issues, fixedData } = validateAll(data, articleText, difficulty);
+export function validateWorksheet(data: WorksheetData, articleText: string, difficulty?: Difficulty, options?: MCValidationOptions): ValidationResult {
+  const { issues, fixedData } = validateAll(data, articleText, difficulty, options);
 
   const errors = issues.filter(i => i.severity === 'error');
 

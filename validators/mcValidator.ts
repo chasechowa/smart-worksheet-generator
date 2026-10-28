@@ -548,7 +548,15 @@ function fixAnswerDistribution(mc: MCQuestion[]): MCQuestion[] {
   return result;
 }
 
-export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issues: ValidationIssue[]; fixedData: WorksheetData } {
+export interface MCValidationOptions {
+  /**
+   * Single-question regeneration passes false: rotating options to balance the
+   * answer spread would silently rewrite a different question.
+   */
+  fixAnswerDistribution?: boolean;
+}
+
+export function validateMC(data: WorksheetData, difficulty?: Difficulty, options: MCValidationOptions = {}): { issues: ValidationIssue[]; fixedData: WorksheetData } {
   const issues: ValidationIssue[] = [];
   const mc = data.multipleChoice || [];
   const expectedTypeCounts = getExpectedTypeCounts(difficulty);
@@ -643,8 +651,10 @@ export function validateMC(data: WorksheetData, difficulty?: Difficulty): { issu
     return sanitized.question;
   });
 
-  // Step 2: auto-fix answer distribution (rotate options)
-  fixedMC = fixAnswerDistribution(fixedMC).map((q, i) => {
+  // Step 2: auto-fix answer distribution (rotate options) unless the caller
+  // wants to preserve the current items (single-question regeneration).
+  const distributedMC = options.fixAnswerDistribution === false ? fixedMC : fixAnswerDistribution(fixedMC);
+  fixedMC = distributedMC.map((q, i) => {
     const sanitized = sanitizeDistractors(q);
     if (sanitized.removedLetters.length > 0) {
       issues.push({
