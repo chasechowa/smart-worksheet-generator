@@ -1694,17 +1694,13 @@ function getTargetSlotForQuestion(
   existing: MCQuestion,
   questionId: string,
   difficulty: Difficulty,
-): { type: MCQuestionType; level: NonNullable<MCQuestion['cognitiveLevel']>; scope: NonNullable<MCQuestion['scope']> } {
+): { type: MCQuestionType; level?: NonNullable<MCQuestion['cognitiveLevel']>; scope?: NonNullable<MCQuestion['scope']> } {
   if (difficulty === 'B2') {
     const slot = getB2SlotNumber(questionId);
     const rule = slot === null ? undefined : B2_MC_SLOT_RULES[slot];
     if (rule) return { type: rule.type, level: rule.level, scope: rule.scope };
   }
-  return {
-    type: existing.type,
-    level: existing.cognitiveLevel || 'inference',
-    scope: existing.scope || 'whole-text',
-  };
+  return { type: existing.type, level: existing.cognitiveLevel, scope: existing.scope };
 }
 
 /** Build a prompt that rewrites exactly one MCQ while keeping its skill slot. */
@@ -1767,8 +1763,8 @@ export function isRegeneratedMCQuestionAcceptable(
   const target = getTargetSlotForQuestion(existing, existing.id, difficulty);
   if (
     canonicalMCQuestionType(candidate.type) !== target.type ||
-    canonicalCognitiveLevel(candidate.cognitiveLevel) !== target.level ||
-    canonicalMCScope(candidate.scope) !== target.scope
+    (target.level !== undefined && canonicalCognitiveLevel(candidate.cognitiveLevel) !== target.level) ||
+    (target.scope !== undefined && canonicalMCScope(candidate.scope) !== target.scope)
   ) {
     reasons.push('does not match the assigned slot');
   }
@@ -1821,8 +1817,8 @@ export function applyRegeneratedMCQuestion(
     ...candidate,
     id: existing.id,
     type: target.type,
-    cognitiveLevel: target.level,
-    scope: target.scope,
+    ...(target.level !== undefined ? { cognitiveLevel: target.level } : {}),
+    ...(target.scope !== undefined ? { scope: target.scope } : {}),
     answer: normalizeAnswerToken(candidate.answer),
   };
   if (existing.id === 'q6' || existing.id === 'q7') {
