@@ -4,11 +4,19 @@ This file is loaded automatically by agent tooling (Codex reads `AGENTS.md`; Cla
 `CLAUDE.md`). Both point at the same single source of truth so that either agent can pick up
 the project state and finish the other's work without conflicts.
 
+## 0. Read SKILL.md first (mandatory)
+
+Before anything else, read **`SKILL.md`**. It defines the two workstreams — **UI** (workspace
+shell/theme/responsive) and **LOGIC-PDF** (generation logic, validators, worksheet paper, print/PDF
+layout) — plus file ownership, shared-file locks, deploy permissions, and definition of done.
+Then read `PROJECT_STATUS.md` §0 for the live locks; confirm which stream this conversation owns
+before editing. If the conversation was opened in the UI worktree, follow `SKILL.md` §3.
+
 ## 1. Always read first
 
-Read **`PROJECT_STATUS.md`** before touching anything. It holds the current state, the live
-Cloudflare deployment/version, the git trace, recent work, and open todos. A fresh agent must be
-able to reconstruct the whole project from it alone.
+Read **`SKILL.md`** and then **`PROJECT_STATUS.md`** before touching anything. The status file holds
+the current state, the live Cloudflare deployment/version, the git trace, recent work, and open
+todos. A fresh agent must be able to reconstruct the whole project from it alone.
 
 ## 2. Keep it in sync (mandatory)
 
@@ -32,9 +40,12 @@ canonical handoff — leaving it stale breaks the next agent.
 
 ## 4. Concurrency rule (avoids breakage)
 
-If the other agent may be working in the same working tree, do NOT run `wrangler pages deploy` or
-rebuild `dist` while it is mid-edit — that caused a build/deploy race before. Coordinate: wait
-until the other agent reports done, or confirm they are idle, before deploying.
+Two conversations may run at once: the **UI** stream works in a separate worktree
+(`../smart-worksheet-generator-ui`, branch `ui/overhaul`) and may only deploy previews
+(`--branch ui/overhaul`). The **LOGIC-PDF** stream works in this tree on `main` and owns production
+deployments (`--branch main`). Shared files (`App.tsx`, `index.html`, `package.json`, docs) require
+holding the matching lock in `PROJECT_STATUS.md` §0. Never rebuild `dist/` or run
+`wrangler pages deploy` while another stream is mid-edit. Full rules: `SKILL.md` §3–§4.
 
 ## 5. Git rules (keep the history clean & safe)
 

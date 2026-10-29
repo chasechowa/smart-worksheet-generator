@@ -1,6 +1,11 @@
 # Project — Smart Worksheet Generator
 
-Read **`PROJECT_STATUS.md`** first: it holds the current state, CF deployment/live status,
+**Read `SKILL.md` first (mandatory).** It assigns this conversation to one of two streams —
+**UI** (workspace shell/theme/responsive) or **LOGIC-PDF** (generation logic, validators, worksheet
+paper, print/PDF layout) — and defines file ownership, shared-file locks, deploy permissions, and
+done criteria. Then read `PROJECT_STATUS.md` §0 for the live locks before editing anything.
+
+Read **`PROJECT_STATUS.md`** next: it holds the current state, CF deployment/live status,
 git trace, recent work, and open todos. **Keep it in sync as you work** — after any material
 change (feature, config, model list, deployment, live version, push outcome) update the relevant
 sections too, not just the log. After any `git` operation or Cloudflare deploy, append one line

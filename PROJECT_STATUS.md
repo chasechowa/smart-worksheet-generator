@@ -1,6 +1,20 @@
 # PROJECT STATUS — Smart Worksheet Generator
 
-最后更新：**2026-10-28**
+最后更新：**2026-10-29**
+
+## 0. 分工锁（每次开工前更新）
+
+完整规则见 **`SKILL.md`**；本对话归属 **LOGIC-PDF**（出题逻辑 + PDF 版式），另一个对话归属 **UI**（工作台整体界面）。
+
+| 流 | 状态 | 会话 | 开始时间 | 正在改的文件 |
+| --- | --- | --- | --- | --- |
+| UI | idle | UI 对话（待开） | — | — |
+| LOGIC-PDF | idle | 当前对话 | — | — |
+| DEPLOY | idle | — | — | — |
+
+- 改共享文件（`App.tsx`、`index.html`、`package.json`、文档）前，先把自己的行设为 `active` 并列出文件；完成后改回 `idle`。
+- 对方 `active` 且列出了同一文件时不要动；锁超过 4 小时可接管，但要在日志写明“接管”。
+- UI 流在独立 worktree `../smart-worksheet-generator-ui`（分支 `ui/overhaul`）工作，只能 preview 部署（`--branch ui/overhaul`）；生产部署（`--branch main`）归 LOGIC-PDF。
 
 ## 1. 当前状态
 
@@ -141,3 +155,5 @@
 | 2026-10-28 | 修复 Sentence Insertion 歧义：[4] 与 [1] 同时成立；提示词禁止裸回指、[1] 结论句，校验加 warning；commit `dab808c` | ✅ 219/219、tsc 无错 |
 | 2026-10-28 | 修复答案键重复：整卷生成随机散布正确项位置，提示词要求 A/B/C/D 分散、示例答案改 B；commit `6e892ae` | ✅ 222/222、tsc 无错 |
 | 2026-10-28 | 重新构建并部署 CF Pages | ✅ 部署 `02dd5bc4`（Production/main，source `6e892ae`），产物 `index-aa2fPlIX.js` |
+| 2026-10-29 | 建立双流分工：新增 `SKILL.md`（文件归属/锁/部署权限/完成定义），`AGENTS.md`、`CLAUDE.md` 改为强制先读 | ✅ 文档完成 |
+| 2026-10-29 | 当前对话归属 **LOGIC-PDF**；UI 对话使用独立 worktree `../smart-worksheet-generator-ui` + preview 部署 | 约定生效，锁表已建 |
