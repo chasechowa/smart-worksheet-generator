@@ -28,7 +28,7 @@ export function validateAll(data: WorksheetData, articleText: string, difficulty
   }
   issues.push(...validateSyntax(fixedData, articleText));
   issues.push(...validateSentenceInsertion(fixedData, articleText, difficulty));
-  issues.push(...validateWriting(fixedData, articleText));
+  issues.push(...validateWriting(fixedData, articleText, difficulty));
   issues.push(...validateKeys(fixedData));
 
   return { issues, fixedData };

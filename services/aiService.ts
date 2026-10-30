@@ -2,7 +2,8 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
-import { findInvalidExpansionIds, findExpansionFactProblems } from "../validators/writingValidator";
+import { findInvalidExpansionIds, findExpansionProblems } from "../validators/writingValidator";
+import { getExpansionLevelGuidance } from "../validators/expansionRules";
 import {
   OPTION_LENGTH_TOLERANCE_WORDS,
   getOptionLengthViolations,
@@ -1414,7 +1415,9 @@ ${options.writing_critical ? `- criticalThinking: ONE ${profile.writing.critical
 Writing guidance:
 - ${profile.writing.guidance}
 - Expected writing output: ${profile.writing.expectedWritingOutput}
-- Suggested conjunctions: ${profile.writing.conjunctionExamples.join(', ')}
+- Level-specific expansion rules (${difficulty}) — these override any other connector suggestions for expansion:
+  - ${getExpansionLevelGuidance(difficulty)}
+- Connector grammar: a subordinating conjunction (because/although/so that/unless/provided that) joins clauses inside one sentence; a linking adverb (however/therefore/as a result/in contrast/consequently/by contrast) needs a new sentence or a semicolon.
 
 JSON schema:
 {
@@ -1447,12 +1450,12 @@ async function generateWritingSection(
   if (!options.writing_expansion) return first;
 
   const items = Array.isArray(first.writingWorkshop?.expansion) ? first.writingWorkshop!.expansion! : [];
-  const invalidIds = findInvalidExpansionIds(items);
+  const invalidIds = findInvalidExpansionIds(items, difficulty);
   if (invalidIds.length === 0) return first;
 
   const details = items
     .filter(item => invalidIds.includes(item.id))
-    .map(item => `${item.id}: ${findExpansionFactProblems(item.fact, item.conjunctions).join('; ')}`)
+    .map(item => `${item.id}: ${findExpansionProblems(item, difficulty).join('; ')}`)
     .join(' | ');
   const correction = `\n\nRETRY CORRECTION: these expansion facts are unusable because they already contain the relation the student must add: ${details}. Rewrite the expansion array so every fact is ONE independent clause with no connector and no result/contrast/reason/condition clause; sampleAnswer must add a NEW clause. Keep the other writing parts unchanged.`;
 

@@ -77,4 +77,21 @@ describe('validateWriting expansion warnings', () => {
     const warnings = issues.filter(issue => issue.section === 'writing' && issue.severity === 'warning');
     expect(warnings.some(issue => /nothing to expand/i.test(issue.message))).toBe(true);
   });
+
+  it('warns when the fact is too long for A2', () => {
+    const fact = 'This new machine helps people work much faster and it is also very easy to use every day';
+    const items = ['e1', 'e2', 'e3', 'e4'].map(id => makeExpansion({ id, fact, conjunctions: ['because', 'so', 'but'] }));
+    const issues = validateWriting(makeData(items), 'article text', 'A2');
+    expect(issues.some(issue => issue.severity === 'warning' && /A2 expects 6-14 words/.test(issue.message))).toBe(true);
+  });
+
+  it('warns when the connectors are above the selected level', () => {
+    const items = ['e1', 'e2', 'e3', 'e4'].map(id => makeExpansion({
+      id,
+      fact: 'The machine helps people work faster.',
+      conjunctions: ['notwithstanding', 'whereas', 'insofar as'],
+    }));
+    const issues = validateWriting(makeData(items), 'article text', 'A2');
+    expect(issues.some(issue => issue.severity === 'warning' && /not A2-appropriate/.test(issue.message))).toBe(true);
+  });
 });

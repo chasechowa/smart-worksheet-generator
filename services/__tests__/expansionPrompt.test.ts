@@ -20,4 +20,20 @@ describe('sentence expansion prompt', () => {
     expect(prompt).toContain('No offered connector may already appear');
     expect(prompt).toContain('sampleAnswer = fact + ONE offered connector');
   });
+
+  it('gives each difficulty its own word band and connector pool', () => {
+    const a2 = buildWritingSectionPrompt('Article text', 'A2', options);
+    expect(a2).toContain('6-14 words');
+    expect(a2).toContain('and / but / because / so');
+    expect(a2).not.toContain('insofar as');
+
+    const b2 = buildWritingSectionPrompt('Article text', 'B2', options);
+    expect(b2).toContain('11-20 words');
+    expect(b2).toContain('provided that');
+    expect(b2).not.toContain('insofar as');
+
+    const c1 = buildWritingSectionPrompt('Article text', 'C1', options);
+    expect(c1).toContain('14-24 words');
+    expect(c1).toContain('insofar as');
+  });
 });
