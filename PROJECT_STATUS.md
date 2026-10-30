@@ -8,8 +8,8 @@
 
 | 流 | 状态 | 会话 | 开始时间 | 正在改的文件 |
 | --- | --- | --- | --- | --- |
-| UI | idle | UI 对话（待开） | — | — |
-| LOGIC-PDF | idle | 当前对话 | — | — |
+| UI | **active** | UI 对话（本对话，worktree `../smart-worksheet-generator-ui` / `ui/overhaul`） | 2026-10-29T08:48+08:00 | 先只读勘察；预计 `index.html`（共享，链接）、新建 `app.css`、`tailwind.app.config.js`、`App.tsx` 壳层、`ConfigPanel/ProjectPanel/ValidationPanel/InputSection/EditorSection.tsx`、`package.json`（共享） |
+| LOGIC-PDF | idle | 当前对话 | 2026-10-31T07:50+08:00 | 本次已释放（未触碰 UI 文件） |
 | DEPLOY | idle | — | — | — |
 
 - 改共享文件（`App.tsx`、`index.html`、`package.json`、文档）前，先把自己的行设为 `active` 并列出文件；完成后改回 `idle`。
@@ -19,7 +19,7 @@
 
 ## 1. 当前状态
 
-`comprequiz.chao.asia` 现运行纯出题版本 `02dd5bc4`（source `6e892ae`；JS `index-aa2fPlIX.js`）。本轮修复**答案键重复**：模型答案偏 A，加上确定性的分布轮换，会让两次生成得到同一串 A/B/C/D；现在整卷生成会随机散布最终答案位置（保持 A/B/C/D 平衡，选项随答案一起旋转），提示词也要求答案位置分散、示例答案改为 B。此前新增**Sentence Insertion 歧义防护**：禁止以 Such/This/These/It/They 等裸回指开头并放在 [1]，therefore/thus/consequently 类结论句必须放 [4]；提示词要求逐位置自检，校验器对这两类给出 warning。此前新增**单题重生**（编辑视图每题 ↻，按原槽位重写、最多 3 次质量重试、就地替换、一步 Undo）；同时**收紧 B2 质量边界**：Q2 禁止数字/统计口径，干扰项禁止绝对化与离题，Q7 引文必须等长且错误项不得也支持同一主张，Q8 题干必须锚定具体语言信号。继续保留上一轮 B2 校验元数据规范化（大小写/空格/斜杠容错，残留差异自动对齐为 warning）。此前**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
+`comprequiz.chao.asia` 现运行纯出题版本 `b0e205cd`（source `11a0c30`；JS `index-zsXRsRz_.js`）。本轮修复 **Sentence Expansion 的 fact 已被写完整**：原先生成的 fact 自带 and/so/while 等连接或结果从句，学生没有可续写的空间；现在 fact 必须是单一独立分句，不得含题目提供的连接词，也不得含结果/转折/原因/条件从句，生成侧检测到就重写一次，校验侧给 warning。此前修复**答案键重复**：模型答案偏 A，加上确定性的分布轮换，会让两次生成得到同一串 A/B/C/D；现在整卷生成会随机散布最终答案位置（保持 A/B/C/D 平衡，选项随答案一起旋转），提示词也要求答案位置分散、示例答案改为 B。此前新增**Sentence Insertion 歧义防护**：禁止以 Such/This/These/It/They 等裸回指开头并放在 [1]，therefore/thus/consequently 类结论句必须放 [4]；提示词要求逐位置自检，校验器对这两类给出 warning。此前新增**单题重生**（编辑视图每题 ↻，按原槽位重写、最多 3 次质量重试、就地替换、一步 Undo）；同时**收紧 B2 质量边界**：Q2 禁止数字/统计口径，干扰项禁止绝对化与离题，Q7 引文必须等长且错误项不得也支持同一主张，Q8 题干必须锚定具体语言信号。继续保留上一轮 B2 校验元数据规范化（大小写/空格/斜杠容错，残留差异自动对齐为 warning）。此前**恢复 MCQ 生成速度**：A2/B1/C1 不再因长度触发重试（回到 2 个并行请求）；B2 保留槽位/证据重试，但长度问题最多 1 轮。**MCQ 干扰项长度规则仍生效**：每个干扰项与正确答案**词数差 ≤ 2**，不合规只警告、不阻断。此前已有 **TOEFL 式「Sentence Insertion」板块**（默认关闭，A2–C1，每份 2 题）、**Summary 恰好 5 个空**、**B2 生成不硬失败**。个人工作台已从本仓库移出，恢复单入口 Vite 配置。
 
 **用户纠正：个人工作台必须是独立网站，先只在本地开发；等用户给独立地址后再用 CF 部署。不得再次将工作台发布到本项目。**
 
@@ -40,12 +40,12 @@
 - CF Account ID：`23104164c8b023e09beff37879e305f4`；Wrangler 已登录。
 - 同工作树有其他代理时，不并发重建 dist 或部署。
 - 2026-09-10 曾发现其他 Claude 进程，采用 CF 历史回滚及独立验证输出目录，没有重建共享 dist 或重新上传。
-- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-28 重新构建后发布 `02dd5bc4`（产物 `index-aa2fPlIX.js`）。
+- 发布前**必须重新 `npm run build`**，并确认产物是单入口纯出题（`dist/` 内无 `workbench.html`）。最近一次：2026-10-31 重新构建后发布 `b0e205cd`（产物 `index-zsXRsRz_.js`）。
 
 ## 4. 当前线上版本
 
-- 生产 canonical deployment：`02dd5bc4`（source `6e892ae`，答案键随机散布 + Sentence Insertion 歧义防护 + 单题重生 + B2 质量边界收紧 + 槽位元数据规范化 + 纯出题 + B2 优雅降级 + 5 空保证 + MCQ 词数对齐 + 速度恢复）。
-- 主站 JS：`assets/index-aa2fPlIX.js`。已核验 `comprequiz.chao.asia` 清缓存请求返回新产物；上一版 `c10bc90c`（JS `index-CXrCC6ec.js`）、`d8ad1d80`（JS `index-BhTUSz4H.js`）。
+- 生产 canonical deployment：`b0e205cd`（source `11a0c30`，Sentence Expansion 单一分句 + 答案键随机散布 + Sentence Insertion 歧义防护 + 单题重生 + B2 质量边界收紧 + 槽位元数据规范化 + 纯出题 + B2 优雅降级 + 5 空保证 + MCQ 词数对齐 + 速度恢复）。
+- 主站 JS：`assets/index-zsXRsRz_.js`。已核验 `comprequiz.chao.asia` 清缓存请求返回新产物；上一版 `02dd5bc4`（JS `index-aa2fPlIX.js`）、`c10bc90c`（JS `index-CXrCC6ec.js`）。
 - `/workbench.html` 与带新查询参数的 `/workbench` 已返回原出题应用（SPA 回退），不是工作台。
 - 裸 `/workbench` 在 2026-09-10 探测仍命中旧缓存；精确 URL 缓存清除 API 返回 10000 Authentication error（现有 OAuth 缺少权限）。生产回滚已独立核实成功，旧缓存需刷新/过期。
 - 错误历史部署 `484f6bf7`、`e1b25309` 已不作为生产版本，但历史预览仍保留。自动审批拒绝永久删除历史记录，已采用安全回滚完成线上恢复，不再尝试删除。
@@ -54,7 +54,7 @@
 
 - 本次起始 HEAD `1ff2164`，此前工作台代码提交 `0bfccaa`、`1463e4e`。
 - 本次移除 workbench/、workbench.html、WORKBENCH_PLAN.md，并恢复 vite.config.ts 单入口；复制文件已逐一验证。
-- 本地 HEAD `6e892ae`（答案键随机散布 + Sentence Insertion 歧义防护 + 单题重生 + B2 质量收紧 + 计划文档）。远程 `main` 同步见操作日志。
+- 本地 HEAD `11a0c30`（Sentence Expansion 单一分句 + 答案键随机散布 + Sentence Insertion 歧义防护 + 单题重生 + B2 质量收紧 + 计划文档）。远程 `main` 同步见操作日志。
 - 2026-10-28 曾修正上游跟踪：`main` 原误跟 `origin/master`，现为 `origin/main`；`abc7291..18f9fc9` 已推送。
 - `.claude/` 未跟踪，绝不可暂存或输出其凭据内容。
 
@@ -62,6 +62,7 @@
 
 - **B2 槽位元数据规范化（2026-10-28）**：`type` / `cognitiveLevel` / `scope` 统一按忽略大小写、空格、斜杠的规则规范化（`Inference`→`inference`、`Structure/Function/Synthesis`→`Structure / Function / Synthesis`、`Whole Text`→`whole-text`）。槽位表只有一份（`validators/mcValidator.ts` 的 `B2_MC_SLOT_RULES`），生成侧与校验侧共用；生成后仍与蓝图不符的元数据自动对齐并记 warning，不再作为 error 阻断出题。
 - **答案键变化（2026-10-28）**：整卷生成时先把 A/B/C/D 平衡到单字母 ≤3，再随机散布正确项位置（选项与答案一起旋转，distractor 元数据同步重映射）；同一文章重生成不会得到同一串答案。单题重生不触发散布，避免改动其他题。
+- **Sentence Expansion 单一分句（2026-10-31）**：`fact` 必须是一个独立分句（B2 ≤18 词），不得包含 and/but/so/or/yet/while/because/although/though/unless 等连接或结果/转折/原因/条件从句，也不得包含本题提供的连接词。生成后 `findInvalidExpansionIds` 命中即追加 RETRY CORRECTION 重写一次；`validateWriting` 对残留问题给出 “nothing to expand” warning。connectors 要求 3 个不同逻辑类型，`sampleAnswer` 必须新增一个不在 fact 里的从句。
 - **Sentence Insertion 歧义防护（2026-10-28）**：提示词禁止以裸回指（Such/This/These/That/It/They）开头并放在 [1]，要求 therefore/thus/consequently 类结论句放 [4]，并要求逐位置自检、在 explanation 中引用锚点；`validateSentenceInsertion` 对“回指在 [1]”和“结论句不在 [4]”给出 warning。
 - **单题重生（2026-10-28）**：编辑视图每题标题右侧 `↻ Regenerate`。`regenerateMCQuestion` 复用该槽位的批量提示词并追加改进指令，保持原槽位（B2 用固定蓝图；其他级别沿用原 `type/level/scope`）；候选必须通过结构、槽位、证据、干扰项 rationale、词数 ±2、题干去重检查，最多 3 次，失败不动原题；成功后就地替换并更新 `keys.mc`，界面显示提示与一步 Undo。打印/PDF/交互视图不显示该按钮。
 - **单题重生不改动其他题**：重生后的校验传入 `{ fixAnswerDistribution: false }`，避免为平衡 A/B/C/D 而轮换其他题目的选项与答案。
@@ -83,6 +84,7 @@
 - 2026-10-28 单题重生 + B2 质量收紧：**215/215**、`tsc --noEmit` 无错、构建 `index-BhTUSz4H.js`；新增 16 条测试（Q2 两态、提示词规则、单题 prompt/验收/重试、按钮仅编辑态、重生不轮换其他题、拒绝原题干）。未做真实 API 重生验证。
 - 2026-10-28 插入题歧义修复：**219/219**、`tsc --noEmit` 无错、构建 `index-CXrCC6ec.js`；新增 5 条测试（裸回指在 [1]、结论句在 [3]、结论句在 [4] 不报警、提示词规则）。未做真实 API 出题验证。
 - 2026-10-28 答案键修复：**222/222**、`tsc --noEmit` 无错、构建 `index-aa2fPlIX.js`；新增 3 条测试（同一原始键两次散布结果不同、分布仍 ≤3、提示词要求答案位置分散）。未做真实 API 出题验证。
+- 2026-10-31 Sentence Expansion 修复：**229/229**、`tsc --noEmit` 无错、构建 `index-zsXRsRz_.js`；新增 8 条测试（单分句、结果/转折/并列/已提供连接词四类坏例、批量 id、校验 warning、提示词规则）。未做真实 API 出题验证。
 
 ## 8. 后续
 
@@ -159,3 +161,6 @@
 | 2026-10-29 | 建立双流分工：新增 `SKILL.md`（文件归属/锁/部署权限/完成定义），`AGENTS.md`、`CLAUDE.md` 改为强制先读 | ✅ 文档完成 |
 | 2026-10-29 | 当前对话归属 **LOGIC-PDF**；UI 对话使用独立 worktree `../smart-worksheet-generator-ui` + preview 部署 | 约定生效，锁表已建 |
 | 2026-10-29 | 创建 UI worktree `D:/CLAUDEPROJECTS/阅读出题/smart-worksheet-generator-ui`（`ui/overhaul`）并 `npm install` | ✅ 160 包安装完成，可直接开新对话 |
+| 2026-10-29 | UI 流开工：读 `SKILL.md`/`AGENTS.md`/本节 §0，占 UI 锁（worktree `ui/overhaul`）；只读勘察 `App.tsx`、`index.html`、`index.css`、壳层组件与线上站 | 发现线上壳层依赖 `cdn.tailwindcss.com` 与 cdnjs Font Awesome；本机网络两者均不可达，1440/390 截图显示整站无样式（textarea 宽 168px、图标撑成巨图）。未改产品代码，未重建 `dist/`、未部署 |
+| 2026-10-31 | 修复 Sentence Expansion：fact 改为单一分句，禁止预置连接词与结果/转折/原因/条件从句；生成侧命中即重写一次，校验侧 warning；commit `11a0c30` | ✅ 229/229、tsc 无错 |
+| 2026-10-31 | 重新构建并部署 CF Pages | ✅ 部署 `b0e205cd`（Production/main，source `11a0c30`），产物 `index-zsXRsRz_.js` |
