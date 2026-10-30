@@ -2,6 +2,7 @@ import { WorksheetData, Difficulty, AIConfig, AIProvider, ValidationIssue, Issue
 import { getActiveConfig } from "./configService";
 import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
+import { findInvalidExpansionIds, findExpansionFactProblems } from "../validators/writingValidator";
 import {
   OPTION_LENGTH_TOLERANCE_WORDS,
   getOptionLengthViolations,
@@ -1390,7 +1391,7 @@ JSON schema:
 `;
 }
 
-function buildWritingSectionPrompt(article: string, difficulty: Difficulty, options: GenerationOptions): string {
+export function buildWritingSectionPrompt(article: string, difficulty: Difficulty, options: GenerationOptions): string {
   const profile = getDifficultyProfile(difficulty);
   const requested = [
     options.writing_expansion ? 'sentence expansion' : null,
@@ -1405,7 +1406,7 @@ Create ONLY these writing parts: ${requested}.
 Do not spend output tokens on unrequested writing parts; return empty arrays/strings for them.
 
 Requested part rules:
-${options.writing_expansion ? '- expansion: EXACTLY 4 items. Each fact must be based on the article. Give 2-3 level-appropriate conjunctions and a sampleAnswer. Also return keys.expansion.' : '- expansion: return [] and keys.expansion: [].'}
+${options.writing_expansion ? `- expansion: EXACTLY 4 items. fact must be ONE simple independent clause from the article (max 18 words at B2) stating a single fact — not a finished sentence. Do NOT pre-combine: no "and/but/so/or/yet/while/because/although/though/unless/so that", and no result, contrast, reason, or condition clause inside fact. Give exactly 3 level-appropriate connectors of different logical types (conjunction or linking adverb) that can each introduce a NEW continuation. No offered connector may already appear in fact. sampleAnswer = fact + ONE offered connector + a new clause that is not already in fact. Also return keys.expansion.` : '- expansion: return [] and keys.expansion: [].'}
 ${options.writing_keywords ? '- keywords: EXACTLY 5 core words or short phrases that appear verbatim in the article.' : '- keywords: return [].'}
 ${options.writing_qa ? `- qaChain: EXACTLY 4 open-ended questions at ${profile.writing.qaComplexity} level. Also return keys.qa.` : '- qaChain: return [] and keys.qa: [].'}
 ${options.writing_critical ? `- criticalThinking: ONE ${profile.writing.criticalThinkingType} prompt. Also return keys.critical.` : '- criticalThinking: return "" and keys.critical: "".'}
@@ -1419,7 +1420,7 @@ JSON schema:
 {
   "writingWorkshop": {
     "expansion": [
-      { "id": "e1", "fact": "...", "conjunctions": ["however", "therefore"], "sampleAnswer": "..." }
+      { "id": "e1", "fact": "VR lets Olympic skiers practise a course repeatedly without the danger of falling.", "conjunctions": ["so that", "although", "unless"], "sampleAnswer": "VR lets Olympic skiers practise a course repeatedly without the danger of falling, so that their performance on the real course becomes smoother." }
     ],
     "keywords": ["...", "...", "...", "...", "..."],
     "qaChain": ["Question 1?", "Question 2?", "Question 3?", "Question 4?"],
@@ -1432,6 +1433,35 @@ JSON schema:
   }
 }
 `;
+}
+
+async function generateWritingSection(
+  article: string,
+  difficulty: Difficulty,
+  options: GenerationOptions,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+): Promise<WritingSectionResponse> {
+  const prompt = buildWritingSectionPrompt(article, difficulty, options);
+  const first = await generateJSONSection<WritingSectionResponse>('Generating writing section', prompt, aiConfig, onProgress);
+  if (!options.writing_expansion) return first;
+
+  const items = Array.isArray(first.writingWorkshop?.expansion) ? first.writingWorkshop!.expansion! : [];
+  const invalidIds = findInvalidExpansionIds(items);
+  if (invalidIds.length === 0) return first;
+
+  const details = items
+    .filter(item => invalidIds.includes(item.id))
+    .map(item => `${item.id}: ${findExpansionFactProblems(item.fact, item.conjunctions).join('; ')}`)
+    .join(' | ');
+  const correction = `\n\nRETRY CORRECTION: these expansion facts are unusable because they already contain the relation the student must add: ${details}. Rewrite the expansion array so every fact is ONE independent clause with no connector and no result/contrast/reason/condition clause; sampleAnswer must add a NEW clause. Keep the other writing parts unchanged.`;
+
+  try {
+    return await generateJSONSection<WritingSectionResponse>('Fixing expansion facts', prompt + correction, aiConfig, onProgress);
+  } catch (err: any) {
+    console.warn('Expansion retry failed, keeping first writing result:', err?.message || err);
+    return first;
+  }
 }
 
 function ensureArray<T>(value: T[] | undefined, label: string): T[] {
@@ -2132,7 +2162,7 @@ async function generateSectionedWorksheet(
     : Promise.resolve({} as SyntaxSectionResponse);
 
   const writingPromise = selectedWriting
-    ? generateJSONSection<WritingSectionResponse>('Generating writing section', buildWritingSectionPrompt(article, difficulty, options), aiConfig, mark)
+    ? generateWritingSection(article, difficulty, options, aiConfig, mark)
         .then(part => {
           completedTasks++;
           onProgress?.(`Writing complete (${completedTasks}/${selectedTasks.length})...`);
