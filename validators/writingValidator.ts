@@ -1,6 +1,6 @@
 import type { WorksheetData, ValidationIssue, ExpansionItem, Difficulty } from '../types';
 import { findVerbatimMatch, describeMatch } from './verbatimMatcher';
-import { findExpansionLevelProblems } from './expansionRules';
+import { findExpansionLevelProblems, findExpansionContinuationProblems } from './expansionRules';
 
 const DEFAULT_CONJUNCTIONS = ['however', 'therefore', 'moreover', 'consequently'];
 
@@ -42,17 +42,16 @@ export function findExpansionFactProblems(fact: string, conjunctions: string[] =
   return problems;
 }
 
-export function findExpansionProblems(item: ExpansionItem, difficulty?: Difficulty): string[] {
-  const problems = findExpansionFactProblems(item.fact, item.conjunctions);
-  if (difficulty) {
-    problems.push(...findExpansionLevelProblems(item, difficulty));
-  }
-  return problems;
+export function findExpansionProblems(item: ExpansionItem): string[] {
+  return [
+    ...findExpansionFactProblems(item.fact, item.conjunctions),
+    ...findExpansionContinuationProblems(item),
+  ];
 }
 
-export function findInvalidExpansionIds(items: ExpansionItem[], difficulty?: Difficulty): string[] {
+export function findInvalidExpansionIds(items: ExpansionItem[]): string[] {
   return (items || [])
-    .filter(item => findExpansionProblems(item, difficulty).length > 0)
+    .filter(item => findExpansionProblems(item).length > 0)
     .map(item => item.id)
     .filter(Boolean);
 }
@@ -88,6 +87,17 @@ export function validateWriting(data: WorksheetData, articleText: string, diffic
         severity: 'warning',
         message: `Expansion ${i + 1}: ${factProblems[0]}; the fact already contains the logical link, so there is nothing to expand`,
         suggestion: 'Make fact ONE independent clause; put the relation only in sampleAnswer.',
+      });
+    }
+
+    const continuationProblems = findExpansionContinuationProblems(ex);
+    if (continuationProblems.length > 0) {
+      issues.push({
+        type: 'rule',
+        section: 'writing',
+        severity: 'warning',
+        message: `Expansion ${i + 1}: ${continuationProblems[0]}`,
+        suggestion: 'Offer only connectors you can continue naturally; give one continuation per connector.',
       });
     }
 

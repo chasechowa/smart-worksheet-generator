@@ -1407,7 +1407,7 @@ Create ONLY these writing parts: ${requested}.
 Do not spend output tokens on unrequested writing parts; return empty arrays/strings for them.
 
 Requested part rules:
-${options.writing_expansion ? `- expansion: EXACTLY 4 items. fact must be ONE simple independent clause from the article (max 18 words at B2) stating a single fact — not a finished sentence. Do NOT pre-combine: no "and/but/so/or/yet/while/because/although/though/unless/so that", and no result, contrast, reason, or condition clause inside fact. Give exactly 3 level-appropriate connectors of different logical types (conjunction or linking adverb) that can each introduce a NEW continuation. No offered connector may already appear in fact. sampleAnswer = fact + ONE offered connector + a new clause that is not already in fact. Also return keys.expansion.` : '- expansion: return [] and keys.expansion: [].'}
+${options.writing_expansion ? `- expansion: EXACTLY 4 items. fact must be ONE simple independent clause from the article (max 18 words at B2) stating a single fact — not a finished sentence. Do NOT pre-combine: no "and/but/so/or/yet/while/because/although/though/unless/so that", and no result, contrast, reason, or condition clause inside fact. Choose exactly 3 connectors that genuinely fit this specific fact and express different logical relations — do not force a connector that cannot be continued naturally. No offered connector may already appear in fact. For EACH connector add a continuations entry: { "connector": "...", "continuation": "the new clause only" }; each continuation must be a natural 6-18 word clause and must not repeat the fact. sampleAnswer = fact + ONE offered connector + its continuation. Also return keys.expansion.` : '- expansion: return [] and keys.expansion: [].'}
 ${options.writing_keywords ? '- keywords: EXACTLY 5 core words or short phrases that appear verbatim in the article.' : '- keywords: return [].'}
 ${options.writing_qa ? `- qaChain: EXACTLY 4 open-ended questions at ${profile.writing.qaComplexity} level. Also return keys.qa.` : '- qaChain: return [] and keys.qa: [].'}
 ${options.writing_critical ? `- criticalThinking: ONE ${profile.writing.criticalThinkingType} prompt. Also return keys.critical.` : '- criticalThinking: return "" and keys.critical: "".'}
@@ -1415,7 +1415,7 @@ ${options.writing_critical ? `- criticalThinking: ONE ${profile.writing.critical
 Writing guidance:
 - ${profile.writing.guidance}
 - Expected writing output: ${profile.writing.expectedWritingOutput}
-- Level-specific expansion rules (${difficulty}) — these override any other connector suggestions for expansion:
+- Level guidance (${difficulty}) — a menu, not a whitelist:
   - ${getExpansionLevelGuidance(difficulty)}
 - Connector grammar: a subordinating conjunction (because/although/so that/unless/provided that) joins clauses inside one sentence; a linking adverb (however/therefore/as a result/in contrast/consequently/by contrast) needs a new sentence or a semicolon.
 
@@ -1423,7 +1423,7 @@ JSON schema:
 {
   "writingWorkshop": {
     "expansion": [
-      { "id": "e1", "fact": "VR lets Olympic skiers practise a course repeatedly without the danger of falling.", "conjunctions": ["so that", "although", "unless"], "sampleAnswer": "VR lets Olympic skiers practise a course repeatedly without the danger of falling, so that their performance on the real course becomes smoother." }
+      { "id": "e1", "fact": "VR lets Olympic skiers practise a course repeatedly without the danger of falling.", "conjunctions": ["so that", "although", "unless"], "continuations": [{ "connector": "so that", "continuation": "their performance on the real course becomes smoother" }, { "connector": "although", "continuation": "the training still cannot reproduce real snow" }, { "connector": "unless", "continuation": "they practise the real course before the race" }], "sampleAnswer": "VR lets Olympic skiers practise a course repeatedly without the danger of falling, so that their performance on the real course becomes smoother." }
     ],
     "keywords": ["...", "...", "...", "...", "..."],
     "qaChain": ["Question 1?", "Question 2?", "Question 3?", "Question 4?"],
@@ -1450,14 +1450,14 @@ async function generateWritingSection(
   if (!options.writing_expansion) return first;
 
   const items = Array.isArray(first.writingWorkshop?.expansion) ? first.writingWorkshop!.expansion! : [];
-  const invalidIds = findInvalidExpansionIds(items, difficulty);
+  const invalidIds = findInvalidExpansionIds(items);
   if (invalidIds.length === 0) return first;
 
   const details = items
     .filter(item => invalidIds.includes(item.id))
-    .map(item => `${item.id}: ${findExpansionProblems(item, difficulty).join('; ')}`)
+    .map(item => `${item.id}: ${findExpansionProblems(item).join('; ')}`)
     .join(' | ');
-  const correction = `\n\nRETRY CORRECTION: these expansion facts are unusable because they already contain the relation the student must add: ${details}. Rewrite the expansion array so every fact is ONE independent clause with no connector and no result/contrast/reason/condition clause; sampleAnswer must add a NEW clause. Keep the other writing parts unchanged.`;
+  const correction = `\n\nRETRY CORRECTION: these expansion items are unusable: ${details}. Rewrite the expansion array so every fact is ONE independent clause with no pre-combined relation, every connector has a matching continuations entry with a natural new clause, and sampleAnswer uses one of them. Keep the other writing parts unchanged.`;
 
   try {
     return await generateJSONSection<WritingSectionResponse>('Fixing expansion facts', prompt + correction, aiConfig, onProgress);

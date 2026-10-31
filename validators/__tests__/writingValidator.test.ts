@@ -3,10 +3,16 @@ import { findExpansionFactProblems, findInvalidExpansionIds, validateWriting } f
 import type { ExpansionItem, WorksheetData } from '../../types';
 
 function makeExpansion(overrides: Partial<ExpansionItem> = {}): ExpansionItem {
+  const continuations = [
+    { connector: 'so that', continuation: 'their performance becomes smoother' },
+    { connector: 'although', continuation: 'the training still cannot reproduce real snow' },
+    { connector: 'unless', continuation: 'they practise the real course before the race' },
+  ];
   return {
     id: 'e1',
     fact: 'VR lets Olympic skiers practise a course repeatedly without the danger of falling.',
     conjunctions: ['so that', 'although', 'unless'],
+    continuations,
     sampleAnswer: 'VR lets Olympic skiers practise a course repeatedly without the danger of falling, so that their performance becomes smoother.',
     ...overrides,
   };
@@ -82,16 +88,12 @@ describe('validateWriting expansion warnings', () => {
     const fact = 'This new machine helps people work much faster and it is also very easy to use every day';
     const items = ['e1', 'e2', 'e3', 'e4'].map(id => makeExpansion({ id, fact, conjunctions: ['because', 'so', 'but'] }));
     const issues = validateWriting(makeData(items), 'article text', 'A2');
-    expect(issues.some(issue => issue.severity === 'warning' && /A2 expects 6-14 words/.test(issue.message))).toBe(true);
+    expect(issues.some(issue => issue.severity === 'warning' && /A2 target is 6-16 words/.test(issue.message))).toBe(true);
   });
 
-  it('warns when the connectors are above the selected level', () => {
-    const items = ['e1', 'e2', 'e3', 'e4'].map(id => makeExpansion({
-      id,
-      fact: 'The machine helps people work faster.',
-      conjunctions: ['notwithstanding', 'whereas', 'insofar as'],
-    }));
-    const issues = validateWriting(makeData(items), 'article text', 'A2');
-    expect(issues.some(issue => issue.severity === 'warning' && /not A2-appropriate/.test(issue.message))).toBe(true);
+  it('warns when an item has no continuation for each connector', () => {
+    const items = ['e1', 'e2', 'e3', 'e4'].map(id => makeExpansion({ id, continuations: undefined }));
+    const issues = validateWriting(makeData(items), 'article text', 'B2');
+    expect(issues.some(issue => issue.severity === 'warning' && /one continuation per connector/.test(issue.message))).toBe(true);
   });
 });

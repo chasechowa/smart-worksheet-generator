@@ -236,10 +236,19 @@ export interface SentenceInsertionQuestion {
   sourceParagraphRef?: string;
 }
 
+export interface ExpansionContinuation {
+  /** One of the offered connectors. */
+  connector: string;
+  /** The new clause the student would add after that connector. */
+  continuation: string;
+}
+
 export interface ExpansionItem {
   id: string;
   fact: string;
   conjunctions: string[];
+  /** Proof that each offered connector can actually be continued. */
+  continuations?: ExpansionContinuation[];
   sampleAnswer: string;
 }
 
