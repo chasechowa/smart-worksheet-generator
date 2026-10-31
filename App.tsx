@@ -5,6 +5,7 @@ import type { WorksheetData, AppSettings, Difficulty, Project, ValidationResult,
 import { generateAndRefine, regenerateMCQuestion, applyRegeneratedMCQuestion } from './services/aiService';
 import { validateWorksheet } from './services/validatorService';
 import { createProject, saveProject, getProjects, getProject } from './services/storageService';
+import { buildWorksheetProject, saveArticleDraft } from './services/projectService';
 import { getActiveConfig } from './services/configService';
 import TestPreview, { Toggle } from './components/TestPreview';
 import { ConfigPanel } from './components/ConfigPanel';
@@ -848,9 +849,11 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Auto-save project when data changes
+  // Auto-save project when data changes. Never let generating mutate a saved
+  // article into a worksheet: the article stays reusable for future tests.
   useEffect(() => {
     if (!currentProject || !data) return;
+    if (currentProject.kind === 'article') return;
     if (!hasWorksheetContent(data)) return;
 
     const updatedProject: Project = {
@@ -968,22 +971,22 @@ export default function App() {
       setData(finalData);
       setValidationResult(validation.issues.length > 0 ? { ...validation, data: finalData } : null);
 
-      // Create or update project
-      if (!currentProject) {
-        const newProject = createProject(
-          finalData.title || 'Untitled Project',
-          article,
-          settings.difficulty
-        );
-        newProject.kind = 'worksheet';
-        newProject.worksheets = [finalData];
-        newProject.snapshot = {
+      // Every generation is its own worksheet project. If the source is a saved
+      // article, keep that article untouched so it can generate more tests later.
+      const sourceArticle = currentProject?.kind === 'article' ? currentProject : null;
+      const newProject = buildWorksheetProject(
+        sourceArticle,
+        finalData,
+        finalData.title || sourceArticle?.title || 'Untitled Worksheet',
+        settings.difficulty,
+        {
           ...buildProjectSnapshot(),
           visibleSections: Array.from(generatedVisibleSections),
-        };
-        const savedProject = await saveProject(newProject);
-        setCurrentProject(normalizeProject(savedProject));
-      }
+        },
+        article,
+      );
+      const savedProject = await saveProject(newProject);
+      setCurrentProject(normalizeProject(savedProject));
     } catch (err: any) {
       setError(err.message || 'Failed to generate');
     } finally {
@@ -1131,29 +1134,21 @@ export default function App() {
 
   const handleSaveArticle = async () => {
     if (!article.trim()) return;
-    const project = currentProject?.kind === 'article'
-      ? {
-          ...currentProject,
-          kind: 'article' as const,
-          title: currentProject.title || getProjectTitleSeed() || 'Saved Article',
-          articleText: article,
-          difficulty: settings.difficulty,
-          worksheets: [],
-          snapshot: buildProjectSnapshot(),
-          updatedAt: Date.now(),
-        }
-      : {
-          ...createProject(getProjectTitleSeed() || 'Saved Article', article, settings.difficulty),
-          kind: 'article' as const,
-          worksheets: [],
-          snapshot: buildProjectSnapshot(),
-        };
+    const { project, created } = saveArticleDraft(
+      currentProject,
+      article,
+      getProjectTitleSeed() || 'Saved Article',
+      settings.difficulty,
+      buildProjectSnapshot(),
+    );
 
     try {
       const saved = await saveProject(project);
       setCurrentProject(normalizeProject(saved));
       setError(null);
-      setRefinementSummary('Article saved locally. It will auto-load next time.');
+      setRefinementSummary(created
+        ? 'Article saved as a new entry. It stays available for future generations.'
+        : 'Article updated. It stays available for future generations.');
     } catch (err: any) {
       setError(err?.message || 'Local save failed.');
     }
