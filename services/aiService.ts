@@ -4,6 +4,7 @@ import { getDifficultyProfile } from "./difficultyProfiles";
 import { normalizeInsertionMarkers, normalizeInsertionAnswer, EXPECTED_INSERTION_COUNT } from "../validators/sentenceInsertionValidator";
 import { findInvalidExpansionIds, findExpansionProblems } from "../validators/writingValidator";
 import { getExpansionLevelGuidance } from "../validators/expansionRules";
+import { buildTitlePrompt, deriveArticleTitle, resolveWorksheetTitle } from "./titleService";
 import {
   OPTION_LENGTH_TOLERANCE_WORDS,
   getOptionLengthViolations,
@@ -1516,6 +1517,21 @@ interface WritingSectionResponse {
   };
 }
 
+async function generateWorksheetTitle(
+  article: string,
+  aiConfig: AIConfig,
+  onProgress?: (message: string) => void,
+): Promise<{ title: string }> {
+  const result = await generateJSONSection<{ title?: string }>(
+    'Naming the worksheet',
+    buildTitlePrompt(article),
+    aiConfig,
+    onProgress,
+    300,
+  );
+  return { title: typeof result?.title === 'string' ? result.title.trim() : '' };
+}
+
 async function generateJSONSection<T = any>(
   label: string,
   prompt: string,
@@ -2146,6 +2162,16 @@ async function generateSectionedWorksheet(
     ? generateCompleteSummarySection(article, difficulty, aiConfig, mark, analysis)
     : Promise.resolve({} as SummarySectionResponse);
 
+  // Title is independent of which sections were selected: reuse the article's
+  // first line when it looks like a headline, otherwise ask for a short title.
+  const heuristicTitle = deriveArticleTitle(article);
+  const titlePromise = (!options.summary && !heuristicTitle)
+    ? generateWorksheetTitle(article, aiConfig, onProgress).catch(err => {
+        console.warn('Title generation failed, falling back to article text:', err?.message || err);
+        return { title: '' };
+      })
+    : Promise.resolve({ title: heuristicTitle || '' });
+
   const mcPromise = options.mc
     ? generateCompleteMCSection(article, difficulty, aiConfig, mark, analysis)
       .then(part => {
@@ -2188,14 +2214,21 @@ async function generateSectionedWorksheet(
         })
     : Promise.resolve({ sentenceInsertion: [] } as InsertionSectionResponse);
 
-  const summaryPart = await summaryPromise.then(part => {
+  const summaryPartWithProgress = summaryPromise.then(part => {
     if (options.summary) {
       completedTasks++;
       onProgress?.(`Summary complete (${completedTasks}/${selectedTasks.length})...`);
     }
     return part;
   });
-  const [mcParts, syntaxPart, writingPart, insertionPart] = await Promise.all([mcPromise, syntaxPromise, writingPromise, insertionPromise]);
+  const [summaryPart, titlePart, mcParts, syntaxPart, writingPart, insertionPart] = await Promise.all([
+    summaryPartWithProgress,
+    titlePromise,
+    mcPromise,
+    syntaxPromise,
+    writingPromise,
+    insertionPromise,
+  ]);
 
   onProgress?.('Assembling worksheet...');
 
@@ -2235,7 +2268,7 @@ async function generateSectionedWorksheet(
     : undefined;
 
   return {
-    title: summaryPart.title || 'Untitled Worksheet',
+    title: resolveWorksheetTitle(summaryPart.title, titlePart.title, article),
     articleSnippet: summaryPart.articleSnippet || article.slice(0, 900),
     header: {
       brand: 'OTIA',
