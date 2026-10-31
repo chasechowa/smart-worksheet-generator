@@ -49,6 +49,13 @@ describe('level guidance', () => {
     expect(problems.some(problem => /missing continuation for "provided that"/.test(problem))).toBe(true);
   });
 
+  it('flags a sampleAnswer that uses several offered connectors', () => {
+    const problems = findExpansionContinuationProblems(makeItem({
+      sampleAnswer: 'Whereas older buyers prefer ownership, provided that prices stay low, and as a result the market shifts.',
+    }));
+    expect(problems.some(problem => /more than one offered connector/.test(problem))).toBe(true);
+  });
+
   it('flags a continuation longer than the fact itself is allowed to be', () => {
     const problems = findExpansionContinuationProblems(makeItem({
       continuations: [

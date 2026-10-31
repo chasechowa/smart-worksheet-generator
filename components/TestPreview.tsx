@@ -30,6 +30,26 @@ const INTERACTIVE_SCRIPT = `
   });
 `;
 
+const LINKING_ADVERBS = new Set([
+  'however', 'therefore', 'thus', 'consequently', 'as a result', 'in contrast',
+  'by contrast', 'on the other hand', 'instead', 'moreover', 'furthermore',
+  'nevertheless', 'then',
+]);
+
+/** One model answer per connector: fact + that connector + its continuation. */
+function buildExpansionModelAnswer(fact: string, connector: string, continuation: string): string {
+  const base = String(fact ?? '').trim().replace(/[.\s]+$/, '');
+  const clause = String(continuation ?? '').trim().replace(/^[,;]\s*/, '');
+  const link = String(connector ?? '').trim();
+  if (!base || !clause || !link) return '';
+
+  if (LINKING_ADVERBS.has(link.toLowerCase())) {
+    const capitalized = link.charAt(0).toUpperCase() + link.slice(1);
+    return `${base}. ${capitalized}, ${clause}`;
+  }
+  return `${base}, ${link} ${clause}`;
+}
+
 const SECTION_INSTRUCTIONS: Record<string, string> = {
   summary: 'Read the summary and fill in each blank with a word or short phrase from the article. Keep your answers grammatically correct in the sentence.',
   mc: 'Choose the best answer for each question. Use evidence from the article, not only general knowledge.',
@@ -404,7 +424,7 @@ const WorksheetPaper: React.FC<{
               {visibleSections.has('writing_expansion') && (
                 <div>
                   <h3 className="text-sm font-black uppercase mb-2 tracking-wider border-l-4 border-gray-300 pl-2">🌱 A. Sentence Expansion</h3>
-                  <p className="italic text-xs mb-3 text-gray-600">Combine the fact with the conjunction to create a complex sentence.</p>
+                  <p className="italic text-xs mb-3 text-gray-600">Choose ONE conjunction and continue the fact to make a complex sentence.</p>
                   {(data.writingWorkshop.expansion || []).slice(0, 4).map((ex, i) => (
                     <div key={i} className="mb-4 avoid-break">
                       <div className="flex gap-2 items-baseline mb-1 text-[11pt]">
@@ -629,19 +649,30 @@ const WorksheetPaper: React.FC<{
                           <div key={ex.id || i} className="bg-white p-3 rounded border border-blue-100">
                             <div className="text-xs font-bold text-gray-500 mb-1">Fact {i + 1}: {ex.fact}</div>
                             <div className="text-xs text-gray-600 mb-1">Conjunctions: [{ex.conjunctions?.join(' / ') || '—'}]</div>
-                            <div className="flex items-start gap-2">
-                              <span className="text-[10px] font-black text-blue-600 mt-0.5 shrink-0">KEY:</span>
-                              <PrintableField
-                                value={data.keys.expansion?.[i] || ''}
-                                onChange={e => {
-                                  const next = [...(data.keys.expansion || [])];
-                                  next[i] = e.target.value;
-                                  update('keys', { ...data.keys, expansion: next });
-                                }}
-                                className="text-sm text-blue-800 italic flex-1"
-                                viewMode={viewMode}
-                              />
-                            </div>
+                            {ex.continuations && ex.continuations.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {ex.continuations.map((cont, cIdx) => (
+                                  <div key={cIdx} className="flex items-start gap-2">
+                                    <span className="text-[10px] font-black text-blue-600 mt-0.5 shrink-0 w-24">{cont.connector}</span>
+                                    <span className="text-sm text-blue-800 italic flex-1">{buildExpansionModelAnswer(ex.fact, cont.connector, cont.continuation)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-2">
+                                <span className="text-[10px] font-black text-blue-600 mt-0.5 shrink-0">KEY:</span>
+                                <PrintableField
+                                  value={data.keys.expansion?.[i] || ''}
+                                  onChange={e => {
+                                    const next = [...(data.keys.expansion || [])];
+                                    next[i] = e.target.value;
+                                    update('keys', { ...data.keys, expansion: next });
+                                  }}
+                                  className="text-sm text-blue-800 italic flex-1"
+                                  viewMode={viewMode}
+                                />
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

@@ -59,6 +59,10 @@ function normalize(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function getExpansionLevelGuidance(difficulty: Difficulty): string {
   const rule = EXPANSION_LEVEL_RULES[difficulty];
   return `fact ${rule.factWords[0]}-${rule.factWords[1]} words (target); ${rule.syntax}. ` +
@@ -121,6 +125,17 @@ export function findExpansionContinuationProblems(item: ExpansionItem): string[]
     }
     if (text && normalize(item.fact).includes(normalize(text))) {
       problems.push(`continuation for "${connector}" repeats the fact`);
+    }
+  }
+
+  // The model answer must demonstrate ONE choice, not chain all three together.
+  const sampleAnswer = String(item.sampleAnswer ?? '');
+  if (sampleAnswer) {
+    const used = connectors.filter(connector =>
+      new RegExp(`\\b${escapeRegExp(connector)}\\b`, 'i').test(sampleAnswer),
+    );
+    if (used.length > 1) {
+      problems.push(`sampleAnswer uses more than one offered connector (${used.join(', ')}); each model answer must use exactly one`);
     }
   }
 

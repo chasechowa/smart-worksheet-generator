@@ -22,6 +22,7 @@ describe('sentence expansion prompt', () => {
     expect(prompt).toContain('continuations');
     expect(prompt).toContain('different logical relations');
     expect(prompt).toContain('not a whitelist');
+    expect(prompt).toContain('exactly ONE of the three connectors');
   });
 
   it('treats each difficulty as a menu of functions and examples, not a fixed pool', () => {
